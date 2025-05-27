@@ -22,8 +22,34 @@ local alreadyRan = false
 local display_equip_button = true
 local lockedItems = {}
 local base_item
+current_commodores_offers = {}
+
+mod.get_wishlist = function()
+    local CCVI = get_mod("character_cosmetics_view_improved")
+    if CCVI then
+        wishlisted_items = CCVI:get("wishlisted_items")
+    else
+        wishlisted_items = mod:get("wishlisted_items")
+    end
+
+    if wishlisted_items == nil then
+        wishlisted_items = {}
+    end
+end
+
+mod.set_wishlist = function()
+    local CCVI = get_mod("character_cosmetics_view_improved")
+    if CCVI then
+        mod:set("wishlisted_items", wishlisted_items)
+        CCVI:set("wishlisted_items", wishlisted_items)
+    else
+        mod:set("wishlisted_items", wishlisted_items)
+    end
+end
 
 mod.on_all_mods_loaded = function()
+    mod.get_wishlist()
+
     CCVI = get_mod("character_cosmetics_view_improved")
 
     -- Override weapon_customization function to prevent crash when immediately backing out of store view.
@@ -36,6 +62,7 @@ mod.on_all_mods_loaded = function()
     local unit_set_local_position = Unit.set_local_position
 
     if weapon_customization then
+
         weapon_customization.set_light_positions = function(self)
             -- Get cosmetic view
             self:get_cosmetic_view()
@@ -59,6 +86,150 @@ mod.on_all_mods_loaded = function()
                     end
                 end
             end
+        end
+    end
+
+    if not CCVI then
+        mod.wishlist_store_check = function(self, archetype)
+            if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+                local _store_promise = mod.grab_current_commodores_items(self, archetype)
+                return _store_promise
+            end
+        end
+
+        mod.display_wishlist_notification = function(self)
+
+            local _store_promise_ogryn = mod.wishlist_store_check(self, "ogryn")
+
+            if _store_promise_ogryn then
+                _store_promise_ogryn:next(
+                    function(data)
+                        local _store_promise_zealot = mod.wishlist_store_check(self, "zealot")
+
+                        _store_promise_zealot:next(
+                            function(data)
+                                local _store_promise_veteran = mod.wishlist_store_check(self, "veteran")
+
+                                _store_promise_veteran:next(
+                                    function(data)
+                                        local _store_promise_psyker = mod.wishlist_store_check(self, "psyker")
+
+                                        _store_promise_psyker:next(
+                                            function(data)
+                                                local _store_promise = mod.wishlist_store_check(self)
+
+                                                _store_promise:next(
+                                                    function(data)
+                                                        local available_items = {}
+                                                        for i, item in pairs(wishlisted_items) do
+                                                            local item_name = item.name
+                                                            local gearid = item.gearid
+                                                            local purchase_offer = nil
+                                                            purchase_offer = mod.get_item_in_current_commodores(self, gearid, item.name)
+
+                                                            if purchase_offer ~= nil then
+                                                                local item_text = Localize(item.display_name)
+                                                                if item.parent_item then
+                                                                    item_text = item_text .. " (" .. item.parent_item .. ")"
+                                                                end
+                                                                available_items[#available_items + 1] = item_text
+                                                            end
+                                                        end
+
+                                                        if #available_items > 0 then
+                                                            local text = "{#color(255, 170, 30)}" .. Localize("loc_VLWC_wishlist_notification") ..
+                                                                             "\n"
+                                                            for _, available_item in pairs(available_items) do
+                                                                text = text .. "{#color(125, 108, 56)} {#color(169, 191, 153)}" .. available_item ..
+                                                                           "\n"
+                                                            end
+                                                            Managers.event:trigger("event_add_notification_message", "default", text)
+                                                        end
+
+                                                        current_commodores_offers = {}
+                                                    end
+                                                )
+                                            end
+                                        )
+                                    end
+                                )
+                            end
+                        )
+                    end
+                )
+            end
+
+        end
+
+        mod:hook_safe(
+            CLASS.StateMainMenu, "event_request_select_new_profile", function(self, profile)
+                mod.display_wishlist_notification(self)
+            end
+        )
+    end
+end
+
+mod.remove_item_from_wishlist = function(item)
+    if item then
+        local item_name = item.name
+        local item_dev_name = item.dev_name
+        local item_display_name = item.display_name
+        local item_gearid = item.__gear_id
+
+        if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+            for i, item1 in pairs(wishlisted_items) do
+                if item1.name == item_name then
+                    table.remove(wishlisted_items, i)
+                end
+            end
+        end
+    end
+end
+
+mod.update_wishlist_icons = function(self)
+    local item_grid = self._item_grid
+    local widgets = item_grid:widgets()
+
+    for _, widget in pairs(widgets) do
+        local item_on_wishlist = false
+
+        -- weapon skins
+        if widget.content and widget.content.entry and widget.content.entry.item and widget.content.entry.item.slot_weapon_skin and
+            widget.content.entry.item.slot_weapon_skin.__master_item then
+            if widget.content.entry.item.slot_weapon_skin.__master_item then
+                local previewed_item_name = widget.content.entry.item.slot_weapon_skin.__master_item.name
+                if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                    for i, item in pairs(wishlisted_items) do
+                        if item.name == previewed_item_name then
+                            item_on_wishlist = true
+                        end
+                    end
+                end
+            end
+        end
+
+        -- trinkets
+        if widget.content and widget.content.entry and widget.content.entry.item and widget.content.entry.item.attachments and
+            widget.content.entry.item.attachments.slot_trinket_1 and widget.content.entry.item.attachments.slot_trinket_1.item and
+            widget.content.entry.item.attachments.slot_trinket_1.item.__master_item then
+            if widget.content.entry.item.attachments.slot_trinket_1.item.__master_item then
+                local previewed_item_name = widget.content.entry.item.attachments.slot_trinket_1.item.__master_item.name
+                if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                    for i, item in pairs(wishlisted_items) do
+                        if item.name == previewed_item_name then
+                            item_on_wishlist = true
+                        end
+                    end
+                end
+            end
+        end
+
+        if item_on_wishlist and widget.content.entry then
+            widget.content.entry.item_on_wishlist = true
+        elseif widget.content.entry then
+            widget.content.entry.item_on_wishlist = false
         end
     end
 end
@@ -89,7 +260,91 @@ mod:hook_safe(
             else
                 widgets_by_name.weapon_store_button.content.visible = false
             end
+
+            -- find if item is on wishlist
+            local item_on_wishlist = false
+            local widgets_by_name = self._widgets_by_name
+
+            -- weapon skins
+            if self._previewed_item.slot_weapon_skin and self._previewed_item.slot_weapon_skin.__master_item then
+                local previewed_item = self._previewed_item.slot_weapon_skin
+                local previewed_item_name = previewed_item.__master_item.name
+                if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                    for i, item in pairs(wishlisted_items) do
+                        if item and item.name == previewed_item_name then
+                            item_on_wishlist = true
+                        end
+                    end
+                end
+            end
+
+            -- trinkets
+            if self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                self._previewed_item.attachments.slot_trinket_1.item and self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                if self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                    local previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
+                    if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                        for i, item in pairs(wishlisted_items) do
+                            if item.name == previewed_item_name then
+                                item_on_wishlist = true
+                            end
+                        end
+                    end
+                end
+            end
+
+            if item_on_wishlist == true then
+                widgets_by_name.wishlist_button.style.background_gradient.default_color = Color.terminal_text_warning_light(nil, true)
+            else
+                widgets_by_name.wishlist_button.style.background_gradient.default_color = Color.terminal_background_gradient(nil, true)
+            end
+
+            mod.update_wishlist_icons(self)
+
+            if self._previewed_item and self._previewed_item.slot_weapon_skin and self._previewed_item.slot_weapon_skin and
+                self._previewed_item.slot_weapon_skin.__locked and self._previewed_item.slot_weapon_skin.__master_item and
+                self._previewed_item.slot_weapon_skin.__locked == true and self._previewed_item.slot_weapon_skin.__master_item.source == 3 then
+                widgets_by_name.wishlist_button.content.visible = true
+            elseif self._previewed_item and self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                self._previewed_item.attachments.slot_trinket_1.item and self._previewed_item.attachments.slot_trinket_1.item.__locked and
+                self._previewed_item.attachments.slot_trinket_1.item.__locked == true and
+                self._previewed_item.attachments.slot_trinket_1.item.__master_item and
+                self._previewed_item.attachments.slot_trinket_1.item.__master_item.source and
+                self._previewed_item.attachments.slot_trinket_1.item.__master_item.source == 3 then
+                widgets_by_name.wishlist_button.content.visible = true
+            else
+                widgets_by_name.wishlist_button.content.visible = false
+            end
+
+            -- remove purchased items from wishlist
+            if item_on_wishlist and self._previewed_item and self._previewed_item.slot_weapon_skin and self._previewed_item.slot_weapon_skin and
+                self._previewed_item.slot_weapon_skin.__locked and self._previewed_item.slot_weapon_skin.__locked == false or item_on_wishlist and
+                self._previewed_item and self._previewed_item.slot_weapon_skin and self._previewed_item.slot_weapon_skin and
+                not self._previewed_item.slot_weapon_skin.__locked then
+                mod.remove_item_from_wishlist(self._previewed_item.slot_weapon_skin.__master_item)
+            elseif item_on_wishlist and self._previewed_item and self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                self._previewed_item.attachments.slot_trinket_1.item and self._previewed_item.attachments.slot_trinket_1.item.__locked and
+                self._previewed_item.attachments.slot_trinket_1.item.__locked == false or item_on_wishlist and self._previewed_item and
+                self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                self._previewed_item.attachments.slot_trinket_1.item and not self._previewed_item.attachments.slot_trinket_1.item.__locked then
+                mod.remove_item_from_wishlist(self._previewed_item.attachments.slot_trinket_1.item.__master_item)
+            end
+
             Selected_purchase_offer = element.purchase_offer
+            if Selected_purchase_offer then
+                widgets_by_name.wishlist_button.content.visible = true
+            end
+            dbg_wishlist = widgets_by_name.wishlist_button
+
+            if weapon_customization then
+                widgets_by_name.weapon_store_button.offset = {-65, -55, 0}
+                widgets_by_name.wishlist_button.offset = {-5, 0, 0}
+            else
+                widgets_by_name.wishlist_button.offset = {50, -22, 2}
+                widgets_by_name.weapon_store_button.offset = {-5, -70, 0}
+            end
 
             if CCVI then
                 CCVI.Selected_purchase_offer = Selected_purchase_offer
@@ -112,6 +367,8 @@ mod:hook_safe(
 local default_gear_item
 mod:hook_safe(
     CLASS.InventoryWeaponCosmeticsView, "on_enter", function(self)
+        mod.get_wishlist()
+
         default_gear_item = ItemPassTemplates.gear_item
 
         local weapon_item_size = UISettings.weapon_item_size
@@ -194,6 +451,19 @@ mod:hook_safe(
         item_store_icon_text_style.text_horizontal_alignment = "left"
         item_store_icon_text_style.text_vertical_alignment = "bottom"
         item_store_icon_text_style.offset = {10, 0, 7}
+
+        local wishlist_icon_text_style = table.clone(UIFontSettings.header_3)
+
+        wishlist_icon_text_style.text_color = Color.terminal_corner_selected(255, true)
+        wishlist_icon_text_style.default_color = Color.terminal_corner_selected(255, true)
+        wishlist_icon_text_style.hover_color = Color.terminal_corner_selected(255, true)
+        wishlist_icon_text_style.selected_color = Color.terminal_corner_selected(255, true)
+        wishlist_icon_text_style.font_size = 18
+        wishlist_icon_text_style.drop_shadow = false
+        wishlist_icon_text_style.text_horizontal_alignment = "right"
+        wishlist_icon_text_style.text_vertical_alignment = "top"
+        wishlist_icon_text_style.offset = {-10, 5, 7}
+
         ItemPassTemplates.gear_item = {
             {
                 content_id = "hotspot", pass_type = "hotspot",
@@ -350,8 +620,18 @@ mod:hook_safe(
                     end
                 end
             }, {
-                pass_type = "text", value = "$", style = item_store_icon_text_style, visibility_function = function(content, style)
+                pass_type = "text", value = Utf8.upper(Localize("loc_VLWC_in_store")), style = item_store_icon_text_style,
+                visibility_function = function(content, style)
                     if content.entry and content.entry.purchase_offer then
+                        return true
+                    else
+                        return false
+                    end
+                end, change_function = _symbol_text_change_function
+            }, {
+                pass_type = "text", value = Utf8.upper(Localize("loc_VLWC_wishlist")), style = wishlist_icon_text_style,
+                visibility_function = function(content, style)
+                    if content.entry and content.entry.item_on_wishlist then
                         return true
                     else
                         return false
@@ -364,6 +644,8 @@ mod:hook_safe(
 
 mod:hook_safe(
     CLASS.InventoryWeaponCosmeticsView, "on_exit", function(self)
+        mod.set_wishlist()
+
         ItemPassTemplates.gear_item = default_gear_item
         Selected_purchase_offer = {}
         if CCVI then
@@ -599,6 +881,17 @@ local add_definitions = function(definitions)
         }
                                                          )
 
+    local wishlist_button_size = {48, 48}
+
+        definitions.scenegraph_definition.wishlist_button = {
+            horizontal_alignment = "right", parent = "info_box", vertical_alignment = "bottom", size = wishlist_button_size, position = {0,0,0}
+        }
+
+    definitions.widget_definitions.wishlist_button = UIWidget.create_definition(
+                                                         ButtonPassTemplates.terminal_button, "wishlist_button", {
+            gamepad_action = "confirm_pressed", visible = false, original_text = Utf8.upper(Localize("loc_VLWC_wishlist")), hotspot = {}
+        }
+                                                     )
     local should_add_inspect = true
 
     for i = 1, #definitions.legend_inputs do
@@ -889,13 +1182,51 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                                     remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
                                 end
 
+                                -- Find if item is in store.
+                                local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
+                                -- if the source isn't "commodores vestures" yet the item is available in store - set the correct source...
+                                if purchase_offer and item.source ~= 3 then
+                                    item.source = 3
+                                end
+
                                 -- Filter out unknown sources
                                 if item.source == nil or item.source < 1 then
                                     continue = false
                                 end
 
-                                -- Filter out all not available items
-                                local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
+                                -- find if item is on wishlist
+                                local item_on_wishlist = false
+                                local widgets_by_name = self._widgets_by_name
+
+                                -- weapon skin
+                                if self._previewed_item and self._previewed_item.__master_item then
+                                    local previewed_item = self._previewed_item
+                                    local previewed_item_name = previewed_item.__master_item.name
+                                    if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+                                        for i, item in pairs(wishlisted_items) do
+                                            if item and item.name == previewed_item_name then
+                                                item_on_wishlist = true
+                                            end
+                                        end
+                                    end
+                                end
+
+                                -- trinkets
+                                if self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                                    self._previewed_item.attachments.slot_trinket_1.item and
+                                    self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                                    if self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                                        local previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
+                                        if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                                            for i, item in pairs(wishlisted_items) do
+                                                if item.name == previewed_item_name then
+                                                    item_on_wishlist = true
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
 
                                 if continue then
                                     lockedItems[#lockedItems + 1] = item
@@ -903,7 +1234,7 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                                         widget_type = "gear_item", -- item_icon
                                         sort_data = item, item = visual_item, real_item = item, slot_name = selected_item_slot,
                                         new_item_marker = is_new, remove_new_marker_callback = remove_new_marker_callback, locked = true,
-                                        slot = selected_item_slot, purchase_offer = purchase_offer
+                                        slot = selected_item_slot, purchase_offer = purchase_offer, item_on_wishlist = item_on_wishlist
                                     }
                                 end
                             end
@@ -943,13 +1274,51 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                                 remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
                             end
 
+                            -- Find if item is in store.
+                            local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
+                            -- if the source isn't "commodores vestures" yet the item is available in store - set the correct source...
+                            if purchase_offer and item.source ~= 3 then
+                                item.source = 3
+                            end
+
                             -- Filter out unknown sources
                             if item.source == nil or item.source < 1 then
                                 continue = false
                             end
 
-                            -- Filter out all not available items
-                            local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
+                            -- find if item is on wishlist
+                            local item_on_wishlist = false
+                            local widgets_by_name = self._widgets_by_name
+
+                            -- weapon skin
+                            if self._previewed_item and self._previewed_item.__master_item then
+                                local previewed_item = self._previewed_item
+                                local previewed_item_name = previewed_item.__master_item.name
+                                if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+                                    for i, item in pairs(wishlisted_items) do
+                                        if item and item.name == previewed_item_name then
+                                            item_on_wishlist = true
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- trinkets
+                            if self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                                self._previewed_item.attachments.slot_trinket_1.item and
+                                self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                                if self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+                                    local previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
+                                    if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                                        for i, item in pairs(wishlisted_items) do
+                                            if item.name == previewed_item_name then
+                                                item_on_wishlist = true
+                                            end
+                                        end
+                                    end
+                                end
+                            end
 
                             if continue then
                                 lockedItems[#lockedItems + 1] = item
@@ -957,7 +1326,7 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                                     widget_type = "gear_item", -- item_icon
                                     sort_data = item, item = visual_item, real_item = item, slot_name = selected_item_slot, new_item_marker = is_new,
                                     remove_new_marker_callback = remove_new_marker_callback, locked = true, slot = selected_item_slot,
-                                    purchase_offer = purchase_offer
+                                    purchase_offer = purchase_offer, item_on_wishlist = item_on_wishlist
                                 }
                             end
                         end
@@ -1067,9 +1436,99 @@ mod.get_weapon_cosmetic_items = function(self)
     return weapon_cosmetic_items
 end
 
-local current_commodores_offers = {}
 mod:hook_require(
     "scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view", function(instance)
+
+        instance.cb_on_wishlist_pressed = function(self)
+
+            if self._previewed_item then
+                local previewed_item_name = ""
+                local previewed_item_dev_name = ""
+                local previewed_item_display_name = ""
+                local previewed_item_gearid = ""
+                local widgets_by_name = self._widgets_by_name
+                local already_on_wishlist = false
+                local temp = {}
+
+                -- weapon skins 
+                if self._previewed_item.__master_item then
+                    local previewed_item = self._previewed_item.slot_weapon_skin
+                    previewed_item_name = previewed_item.__master_item.name
+                    previewed_item_dev_name = previewed_item.__master_item.dev_name
+                    previewed_item_display_name = previewed_item.__master_item.display_name
+                    previewed_item_gearid = previewed_item.__gear_id
+                    local parent_item_display_name = self._previewed_item.__master_item.display_name
+                    temp.parent_item = Localize(parent_item_display_name)
+
+                    if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+                        for i, item in pairs(wishlisted_items) do
+                            if item.name == previewed_item_name then
+                                -- already in wishlist, remove
+                                already_on_wishlist = true
+                                table.remove(wishlisted_items, i)
+                                self:_play_sound(UISoundEvents.notification_default_exit)
+                                widgets_by_name.wishlist_button.style.background_gradient.default_color = Color.terminal_background_gradient(nil, true)
+                                local text = Localize(previewed_item_display_name) .. " (" .. temp.parent_item .. ")" ..
+                                                 Localize("loc_VLWC_wishlist_removed")
+                                Managers.event:trigger("event_add_notification_message", "default", text)
+                            end
+                        end
+                    end
+                end
+
+                -- trinkets
+                if self._previewed_item.attachments and self._previewed_item.attachments.slot_trinket_1 and
+                    self._previewed_item.attachments.slot_trinket_1.item and self._previewed_item.attachments.slot_trinket_1.item.__master_item then
+
+                    previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
+                    previewed_item_dev_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.dev_name
+                    previewed_item_display_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.display_name
+                    previewed_item_gearid = self._previewed_item.attachments.slot_trinket_1.item.__gear_id
+                    temp.parent_item = "Trinket"
+
+                    if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+
+                        for i, item in pairs(wishlisted_items) do
+                            if item.name == previewed_item_name then
+                                already_on_wishlist = true
+                                table.remove(wishlisted_items, i)
+                                self:_play_sound(UISoundEvents.notification_default_exit)
+                                widgets_by_name.wishlist_button.style.background_gradient.default_color = Color.terminal_background_gradient(nil, true)
+                                local text = Localize(previewed_item_display_name) .. " (" .. temp.parent_item .. ")" ..
+                                                 Localize("loc_VLWC_wishlist_removed")
+                                Managers.event:trigger("event_add_notification_message", "default", text)
+                            end
+                        end
+                    end
+                end
+
+                if not already_on_wishlist then
+                    -- add
+                    temp.name = previewed_item_name
+                    temp.dev_name = previewed_item_dev_name
+                    temp.gearid = previewed_item_gearid
+                    temp.display_name = previewed_item_display_name
+                    dbg_item = self._previewed_item
+
+                    if wishlisted_items == nil then
+                        wishlisted_items = {}
+                    end
+                    if wishlisted_items ~= nil then
+                        wishlisted_items[#wishlisted_items + 1] = temp
+                    end
+                    self:_play_sound(UISoundEvents.notification_default_enter)
+                    widgets_by_name.wishlist_button.style.background_gradient.default_color = Color.terminal_text_warning_light(nil, true)
+                    local text = Localize(previewed_item_display_name) .. " (" .. temp.parent_item .. ")" .. Localize("loc_VLWC_wishlist_added")
+                    Managers.event:trigger("event_add_notification_message", "default", text)
+
+                end
+
+                mod.set_wishlist()
+                mod.update_wishlist_icons(self)
+            end
+
+        end
+
         instance.cb_on_inspect_pressed = function(self)
             local view_name = "cosmetics_inspect_view"
 
@@ -1179,21 +1638,24 @@ mod:hook_require(
             widgets_by_name.weapon_store_button.content.hotspot.pressed_callback = callback(self, "cb_on_weapon_store_pressed")
             local equip_button = widgets_by_name.equip_button
 
+            widgets_by_name.wishlist_button.content.hotspot.pressed_callback = callback(self, "cb_on_wishlist_pressed")
+
             equip_button.content.hotspot.pressed_callback = callback(self, "cb_on_equip_pressed")
         end
 
-        mod.grab_current_commodores_items = function(self)
+        mod.grab_current_commodores_items = function(self, archetype)
             local player = Managers.player:local_player(1)
             local character_id = player:character_id()
             local archetype_name = player:archetype_name()
             local storefront = "premium_store_featured"
-            if archetype_name == "veteran" then
+
+            if archetype == "veteran" or archetype == nil and archetype_name == "veteran" then
                 storefront = "premium_store_skins_veteran"
-            elseif archetype_name == "zealot" then
+            elseif archetype == "zealot" or archetype == nil and archetype_name == "zealot" then
                 storefront = "premium_store_skins_zealot"
-            elseif archetype_name == "psyker" then
+            elseif archetype == "psyker" or archetype == nil and archetype_name == "psyker" then
                 storefront = "premium_store_skins_psyker"
-            elseif archetype_name == "ogryn" then
+            elseif archetype == "ogryn" or archetype == nil and archetype_name == "ogryn" then
                 storefront = "premium_store_skins_ogryn"
             end
 

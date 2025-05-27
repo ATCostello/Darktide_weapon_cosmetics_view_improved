@@ -9,6 +9,21 @@ mod:add_global_localize_strings({
 		en = "Inspect",
 		ru = "Осмотреть",
 	},
+	loc_VLWC_wishlist = {
+		en = "",
+	},
+	loc_VLWC_in_store = {
+		en = "",
+	},
+	loc_VLWC_wishlist_notification = {
+		en = "The following cosmetic(s) from your wishlist are available for purchase: "
+	},
+	loc_VLWC_wishlist_added = {
+		en = " has been added to your wishlist."
+	},
+	loc_VLWC_wishlist_removed = {
+		en = " has been removed from your wishlist."
+	},
 })
 
 return {
