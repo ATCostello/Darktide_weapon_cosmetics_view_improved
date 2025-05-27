@@ -1,7 +1,7 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
 
 return {
-	name = "weapon_cosmetics_view_improved",
+	name = mod:localize("mod_name"),
 	description = mod:localize("mod_description"),
-	is_togglable = true,
+	is_togglable = false,
 }

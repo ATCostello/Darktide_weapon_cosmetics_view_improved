@@ -1,8 +1,7 @@
 --[[
     Name: weapon_cosmetics_view_improved
     Author: Alfthebigheaded
-]]
-local mod = get_mod("weapon_cosmetics_view_improved")
+]] local mod = get_mod("weapon_cosmetics_view_improved")
 local CCVI = get_mod("character_cosmetics_view_improved")
 local weapon_customization = get_mod("weapon_customization")
 
@@ -43,18 +42,19 @@ mod.on_all_mods_loaded = function()
             if self.preview_lights and self.cosmetics_view then
                 for _, unit_data in pairs(self.preview_lights) do
                     -- Get default position
-                    local default_position = vector3_unbox(unit_data.position)
-                    -- Get difference to link unit position
-                    local weapon_spawner = self.cosmetics_view._weapon_preview._ui_weapon_spawner
-                    if weapon_spawner then
-                        local link_difference = vector3_unbox(weapon_spawner._link_unit_base_position) -
-                            vector3_unbox(weapon_spawner._link_unit_position)
-                        -- Position with offset
-                        local light_position = vector3(default_position[1], default_position[2] - link_difference[2],
-                            default_position[3])
-                        -- mod:info("WEAPONCUSTOMIZATION.set_light_positions: " .. tostring(unit_data.unit))
-                        if not tostring(unit_data.unit) == "[Unit (deleted)]" then
-                            unit_set_local_position(unit_data.unit, 1, light_position)
+                    if unit_data.position then
+                        local default_position = vector3_unbox(unit_data.position)
+                        -- Get difference to link unit position
+                        local weapon_spawner = self.cosmetics_view._weapon_preview._ui_weapon_spawner
+                        if weapon_spawner and weapon_spawner._link_unit_position and weapon_spawner._link_unit_base_position then
+                            local link_difference = vector3_unbox(weapon_spawner._link_unit_base_position) -
+                                                        vector3_unbox(weapon_spawner._link_unit_position)
+                            -- Position with offset
+                            local light_position = vector3(default_position[1], default_position[2] - link_difference[2], default_position[3])
+                            -- mod:info("WEAPONCUSTOMIZATION.set_light_positions: " .. tostring(unit_data.unit))
+                            if not tostring(unit_data.unit) == "[Unit (deleted)]" then
+                                unit_set_local_position(unit_data.unit, 1, light_position)
+                            end
                         end
                     end
                 end
@@ -63,9 +63,7 @@ mod.on_all_mods_loaded = function()
     end
 end
 
-------------------------------------------------------------------------------------------------------
---- Hooks into the inventory weapons cosmetics view, on selecting any item.
-------------------------------------------------------------------------------------------------------
+-- When selecting any weapon cosmetic, remove equip button on locked items, set purchase offer and grab all other locked weapon cosmetics if not done already.
 mod:hook_safe(
     CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(self, element)
         local parent_item = self._presentation_item -- Just the weapon here
@@ -81,7 +79,7 @@ mod:hook_safe(
         end
 
         -- hide equip button on locked items
-        if self._selected_tab_index ~= 3 then
+        if element and self._selected_tab_index ~= 3 then
             mod.can_item_be_equipped(self, selected_item)
             local widgets_by_name = self._widgets_by_name
             widgets_by_name.equip_button.content.visible = display_equip_button
@@ -104,33 +102,13 @@ mod:hook_safe(
     end
 )
 
-mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "cb_switch_tab", function(self, index)
-    alreadyRan = false
-end)
+mod:hook_safe(
+    CLASS.InventoryWeaponCosmeticsView, "cb_switch_tab", function(self, index)
+        alreadyRan = false
+    end
+)
 
-mod.focus_on_default_item = function(self)
-    --[[local item_grid = self._item_grid
-    local widgets = item_grid:widgets()
-
-    for i = 1, #widgets do
-        local widget = widgets[i]
-        local element_item = widget.content.element.item
-
-        if element_item and element_item.empty_item and element_item.empty_item == true then
-            local widget_index = item_grid:widget_index(widget) or 1
-            --local scrollbar_animation_progress = item_grid:get_scrollbar_percentage_by_index(widget_index)
-            --local instant_scroll = true
-
-            item_grid:focus_grid_index(widget_index)
-
-            if not Managers.ui:using_cursor_navigation() then
-                item_grid:select_grid_index(widget_index)
-            end
-            break
-        end
-    end]]
-end
-
+-- Add locked gear icons like on the character cosmetics view.
 local default_gear_item
 mod:hook_safe(
     CLASS.InventoryWeaponCosmeticsView, "on_enter", function(self)
@@ -157,11 +135,7 @@ mod:hook_safe(
 
         item_lock_symbol_text_style.text_horizontal_alignment = "right"
         item_lock_symbol_text_style.text_vertical_alignment = "bottom"
-        item_lock_symbol_text_style.offset = {
-            -10,
-            -5,
-            7,
-        }
+        item_lock_symbol_text_style.offset = {-10, -5, 7}
 
         local function item_change_function(content, style)
             local hotspot = content.hotspot
@@ -181,8 +155,7 @@ mod:hook_safe(
                 color = default_color
             end
 
-            local progress = math.max(math.max(hotspot.anim_hover_progress or 0, hotspot.anim_select_progress or 0),
-                hotspot.anim_focus_progress or 0)
+            local progress = math.max(math.max(hotspot.anim_hover_progress or 0, hotspot.anim_select_progress or 0), hotspot.anim_focus_progress or 0)
 
             ColorUtilities.color_lerp(style.color, color, progress, style.color)
         end
@@ -205,8 +178,7 @@ mod:hook_safe(
                 color = default_text_color
             end
 
-            local progress = math.max(math.max(hotspot.anim_hover_progress or 0, hotspot.anim_select_progress or 0),
-                hotspot.anim_focus_progress or 0)
+            local progress = math.max(math.max(hotspot.anim_hover_progress or 0, hotspot.anim_select_progress or 0), hotspot.anim_focus_progress or 0)
 
             ColorUtilities.color_lerp(text_color, color, progress, text_color)
         end
@@ -221,173 +193,65 @@ mod:hook_safe(
         item_store_icon_text_style.drop_shadow = false
         item_store_icon_text_style.text_horizontal_alignment = "left"
         item_store_icon_text_style.text_vertical_alignment = "bottom"
-        item_store_icon_text_style.offset = {
-            10,
-            0,
-            7,
-        }
+        item_store_icon_text_style.offset = {10, 0, 7}
         ItemPassTemplates.gear_item = {
             {
-                content_id = "hotspot",
-                pass_type = "hotspot",
-                style = {
-                    on_hover_sound = UISoundEvents.default_mouse_hover,
-                    on_pressed_sound = UISoundEvents.default_click,
-                },
-            },
-            {
-                pass_type = "texture",
-                style_id = "outer_shadow",
-                value = "content/ui/materials/frames/dropshadow_medium",
-                style = {
-                    horizontal_alignment = "center",
-                    scale_to_material = true,
-                    vertical_alignment = "center",
-                    color = Color.black(200, true),
-                    size_addition = {
-                        20,
-                        20,
-                    },
-                },
-            },
-            {
-                pass_type = "texture",
-                style_id = "background",
-                value = "content/ui/materials/backgrounds/default_square",
-                style = {
-                    color = Color.terminal_background_dark(nil, true),
-                    selected_color = Color.terminal_background_selected(nil, true),
-                },
-            },
-            {
-                pass_type = "texture",
-                style_id = "background_gradient",
-                value = "content/ui/materials/gradients/gradient_vertical",
-                style = {
-                    horizontal_alignment = "center",
-                    vertical_alignment = "center",
-                    default_color = {
-                        100,
-                        33,
-                        35,
-                        37,
-                    },
-                    color = {
-                        100,
-                        33,
-                        35,
-                        37,
-                    },
-                    offset = {
-                        0,
-                        0,
-                        1,
-                    },
-                },
-            },
-            {
-                pass_type = "texture",
-                style_id = "frame",
-                value = "content/ui/materials/frames/frame_tile_2px",
-                style = {
-                    horizontal_alignment = "center",
-                    vertical_alignment = "center",
-                    color = Color.terminal_frame(nil, true),
-                    default_color = Color.terminal_frame(nil, true),
-                    selected_color = Color.terminal_frame_selected(nil, true),
-                    hover_color = Color.terminal_frame_hover(nil, true),
-                    offset = {
-                        0,
-                        0,
-                        12,
-                    },
-                },
-                change_function = item_change_function,
-            },
-            {
-                pass_type = "texture",
-                style_id = "corner",
-                value = "content/ui/materials/frames/frame_corner_2px",
-                style = {
-                    horizontal_alignment = "center",
-                    vertical_alignment = "center",
-                    color = Color.terminal_corner(nil, true),
-                    default_color = Color.terminal_corner(nil, true),
-                    selected_color = Color.terminal_corner_selected(nil, true),
-                    hover_color = Color.terminal_corner_hover(nil, true),
-                    offset = {
-                        0,
-                        0,
-                        13,
-                    },
-                },
-                change_function = item_change_function,
-            },
-            {
-                pass_type = "texture",
-                style_id = "button_gradient",
-                value = "content/ui/materials/gradients/gradient_diagonal_down_right",
-                style = {
-                    horizontal_alignment = "center",
-                    vertical_alignment = "center",
-                    default_color = Color.terminal_background_gradient(nil, true),
-                    selected_color = Color.terminal_frame_selected(nil, true),
-                    offset = {
-                        0,
-                        0,
-                        1,
-                    },
-                },
-                change_function = function(content, style)
+                content_id = "hotspot", pass_type = "hotspot",
+                style = {on_hover_sound = UISoundEvents.default_mouse_hover, on_pressed_sound = UISoundEvents.default_click}
+            }, {
+                pass_type = "texture", style_id = "outer_shadow", value = "content/ui/materials/frames/dropshadow_medium", style = {
+                    horizontal_alignment = "center", scale_to_material = true, vertical_alignment = "center", color = Color.black(200, true),
+                    size_addition = {20, 20}
+                }
+            }, {
+                pass_type = "texture", style_id = "background", value = "content/ui/materials/backgrounds/default_square",
+                style = {color = Color.terminal_background_dark(nil, true), selected_color = Color.terminal_background_selected(nil, true)}
+            }, {
+                pass_type = "texture", style_id = "background_gradient", value = "content/ui/materials/gradients/gradient_vertical", style = {
+                    horizontal_alignment = "center", vertical_alignment = "center", default_color = {100, 33, 35, 37}, color = {100, 33, 35, 37},
+                    offset = {0, 0, 1}
+                }
+            }, {
+                pass_type = "texture", style_id = "frame", value = "content/ui/materials/frames/frame_tile_2px", style = {
+                    horizontal_alignment = "center", vertical_alignment = "center", color = Color.terminal_frame(nil, true),
+                    default_color = Color.terminal_frame(nil, true), selected_color = Color.terminal_frame_selected(nil, true),
+                    hover_color = Color.terminal_frame_hover(nil, true), offset = {0, 0, 12}
+                }, change_function = item_change_function
+            }, {
+                pass_type = "texture", style_id = "corner", value = "content/ui/materials/frames/frame_corner_2px", style = {
+                    horizontal_alignment = "center", vertical_alignment = "center", color = Color.terminal_corner(nil, true),
+                    default_color = Color.terminal_corner(nil, true), selected_color = Color.terminal_corner_selected(nil, true),
+                    hover_color = Color.terminal_corner_hover(nil, true), offset = {0, 0, 13}
+                }, change_function = item_change_function
+            }, {
+                pass_type = "texture", style_id = "button_gradient", value = "content/ui/materials/gradients/gradient_diagonal_down_right", style = {
+                    horizontal_alignment = "center", vertical_alignment = "center", default_color = Color.terminal_background_gradient(nil, true),
+                    selected_color = Color.terminal_frame_selected(nil, true), offset = {0, 0, 1}
+                }, change_function = function(content, style)
                     ButtonPassTemplates.terminal_button_change_function(content, style)
                     ButtonPassTemplates.terminal_button_hover_change_function(content, style)
-                end,
-            },
-            {
-                pass_type = "texture",
-                style_id = "inner_highlight",
-                value = "content/ui/materials/frames/inner_shadow_medium",
-                style = {
-                    scale_to_material = true,
-                    color = Color.terminal_frame(255, true),
-                    offset = {
-                        0,
-                        0,
-                        3,
-                    },
-                },
+                end
+            }, {
+                pass_type = "texture", style_id = "inner_highlight", value = "content/ui/materials/frames/inner_shadow_medium",
+                style = {scale_to_material = true, color = Color.terminal_frame(255, true), offset = {0, 0, 3}},
                 change_function = function(content, style)
                     local hotspot = content.hotspot
 
                     style.color[1] = math.max(hotspot.anim_focus_progress, hotspot.anim_select_progress) * 255
-                end,
-            },
-            {
-                pass_type = "texture_uv",
-                style_id = "icon",
-                value = "content/ui/materials/icons/items/containers/item_container_landscape",
-                value_id = "icon",
-                style = {
-                    horizontal_alignment = "center",
-                    vertical_alignment = "top",
-                    material_values = {},
-                    offset = {
-                        0,
-                        0,
-                        4,
-                    },
-                    uvs = {
+                end
+            }, {
+                pass_type = "texture_uv", style_id = "icon", value = "content/ui/materials/icons/items/containers/item_container_landscape",
+                value_id = "icon", style = {
+                    horizontal_alignment = "center", vertical_alignment = "top", material_values = {}, offset = {0, 0, 4}, uvs = {
                         {
                             (weapon_icon_size[1] - item_icon_size[1]) * 0.5 / weapon_icon_size[1],
-                            (weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2],
-                        },
-                        {
+                            (weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2]
+                        }, {
                             1 - (weapon_icon_size[1] - item_icon_size[1]) * 0.5 / weapon_icon_size[1],
-                            1 - (weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2],
-                        },
-                    },
-                },
-                visibility_function = function(content, style)
+                            1 - (weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2]
+                        }
+                    }
+                }, visibility_function = function(content, style)
                     local use_placeholder_texture = content.use_placeholder_texture
 
                     if use_placeholder_texture and use_placeholder_texture == 0 then
@@ -395,53 +259,23 @@ mod:hook_safe(
                     end
 
                     return false
-                end,
-            },
-            {
-                pass_type = "text",
-                style_id = "owned",
-                value = "",
-                value_id = "owned",
-                style = ItemPassTemplates.item_owned_text_style,
+                end
+            }, {
+                pass_type = "text", style_id = "owned", value = "", value_id = "owned", style = ItemPassTemplates.item_owned_text_style,
                 visibility_function = function(content, style)
                     return content.owned
-                end,
-            },
-            {
-                pass_type = "text",
-                style_id = "owned_count_text",
-                value = "",
-                value_id = "owned_count_text",
-                style = ItemPassTemplates.gear_item_owned_count_style,
-                visibility_function = function(content, style)
+                end
+            }, {
+                pass_type = "text", style_id = "owned_count_text", value = "", value_id = "owned_count_text",
+                style = ItemPassTemplates.gear_item_owned_count_style, visibility_function = function(content, style)
                     return content.owned_count_text
-                end,
-            },
-            {
-                pass_type = "rotated_texture",
-                style_id = "loading",
-                value = "content/ui/materials/loading/loading_small",
+                end
+            }, {
+                pass_type = "rotated_texture", style_id = "loading", value = "content/ui/materials/loading/loading_small",
                 style = {
-                    angle = 0,
-                    horizontal_alignment = "center",
-                    vertical_alignment = "center",
-                    size = {
-                        80,
-                        80,
-                    },
-                    color = {
-                        60,
-                        160,
-                        160,
-                        160,
-                    },
-                    offset = {
-                        0,
-                        0,
-                        2,
-                    },
-                },
-                visibility_function = function(content, style)
+                    angle = 0, horizontal_alignment = "center", vertical_alignment = "center", size = {80, 80}, color = {60, 160, 160, 160},
+                    offset = {0, 0, 2}
+                }, visibility_function = function(content, style)
                     local use_placeholder_texture = content.use_placeholder_texture
 
                     if not use_placeholder_texture or use_placeholder_texture == 1 then
@@ -449,137 +283,53 @@ mod:hook_safe(
                     end
 
                     return false
-                end,
-                change_function = function(content, style, _, dt)
+                end, change_function = function(content, style, _, dt)
                     local add = -0.5 * dt
 
                     style.rotation_progress = ((style.rotation_progress or 0) + add) % 1
                     style.angle = style.rotation_progress * math.pi * 2
-                end,
-            },
-            {
-                pass_type = "texture",
-                style_id = "equipped_icon",
-                value = "content/ui/materials/icons/items/equipped_label",
-                style = {
-                    horizontal_alignment = "right",
-                    vertical_alignment = "top",
-                    size = {
-                        32,
-                        32,
-                    },
-                    offset = {
-                        0,
-                        0,
-                        16,
-                    },
-                },
+                end
+            }, {
+                pass_type = "texture", style_id = "equipped_icon", value = "content/ui/materials/icons/items/equipped_label",
+                style = {horizontal_alignment = "right", vertical_alignment = "top", size = {32, 32}, offset = {0, 0, 16}},
                 visibility_function = function(content, style)
                     return content.equipped
-                end,
-            },
-            {
-                pass_type = "rect",
-                style = {
-                    vertical_alignment = "bottom",
-                    offset = {
-                        0,
-                        0,
-                        3,
-                    },
-                    color = {
-                        150,
-                        0,
-                        0,
-                        0,
-                    },
-                    size = {
-                        nil,
-                        30,
-                    },
-                },
+                end
+            }, {
+                pass_type = "rect", style = {vertical_alignment = "bottom", offset = {0, 0, 3}, color = {150, 0, 0, 0}, size = {nil, 30}},
                 visibility_function = function(content, style)
                     local is_locked = content.locked
                     local is_sold = content.has_price_tag and not content.sold
 
                     return is_locked or is_sold
-                end,
-            },
-            {
-                pass_type = "text",
-                style_id = "price_text",
-                value = "n/a",
-                value_id = "price_text",
-                style = ItemPassTemplates.gear_item_price_style,
+                end
+            }, {
+                pass_type = "text", style_id = "price_text", value = "n/a", value_id = "price_text", style = ItemPassTemplates.gear_item_price_style,
                 visibility_function = function(content, style)
                     return content.has_price_tag and not content.sold
-                end,
-            },
-            {
-                pass_type = "texture",
-                style_id = "wallet_icon",
-                value = "content/ui/materials/base/ui_default_base",
-                value_id = "wallet_icon",
+                end
+            }, {
+                pass_type = "texture", style_id = "wallet_icon", value = "content/ui/materials/base/ui_default_base", value_id = "wallet_icon",
                 style = {
-                    horizontal_alignment = "right",
-                    vertical_alignment = "bottom",
-                    size = {
-                        28,
-                        20,
-                    },
-                    offset = {
-                        -2,
-                        -5,
-                        12,
-                    },
-                    color = {
-                        255,
-                        255,
-                        255,
-                        255,
-                    },
-                },
-                visibility_function = function(content, style)
+                    horizontal_alignment = "right", vertical_alignment = "bottom", size = {28, 20}, offset = {-2, -5, 12},
+                    color = {255, 255, 255, 255}
+                }, visibility_function = function(content, style)
                     return content.has_price_tag and not content.sold
-                end,
-            },
-            {
-                pass_type = "text",
-                value = "",
-                style = item_lock_symbol_text_style,
-                visibility_function = function(content, style)
+                end
+            }, {
+                pass_type = "text", value = "", style = item_lock_symbol_text_style, visibility_function = function(content, style)
                     return content.locked
-                end,
-                change_function = ItemPassTemplates._symbol_text_change_function,
-            },
-            {
-                pass_type = "text",
-                value = "",
-                value_id = "properties",
-                style = ItemPassTemplates.item_properties_symbol_text_style,
-                change_function = ItemPassTemplates._symbol_text_change_function,
-            },
-            {
-                pass_type = "texture",
-                value = "content/ui/materials/symbols/new_item_indicator",
-                style = {
-                    horizontal_alignment = "right",
-                    vertical_alignment = "top",
-                    size = {
-                        100,
-                        100,
-                    },
-                    offset = {
-                        30,
-                        -30,
-                        5,
-                    },
-                    color = Color.terminal_corner_selected(255, true),
-                },
-                visibility_function = function(content, style)
+                end, change_function = ItemPassTemplates._symbol_text_change_function
+            }, {
+                pass_type = "text", value = "", value_id = "properties", style = ItemPassTemplates.item_properties_symbol_text_style,
+                change_function = ItemPassTemplates._symbol_text_change_function
+            }, {
+                pass_type = "texture", value = "content/ui/materials/symbols/new_item_indicator", style = {
+                    horizontal_alignment = "right", vertical_alignment = "top", size = {100, 100}, offset = {30, -30, 5},
+                    color = Color.terminal_corner_selected(255, true)
+                }, visibility_function = function(content, style)
                     return content.element.new_item_marker
-                end,
-                change_function = function(content, style)
+                end, change_function = function(content, style)
                     local speed = 5
                     local anim_progress = 1 - (0.5 + math.sin(Application.time_since_launch() * speed) * 0.5)
                     local hotspot = content.hotspot
@@ -598,23 +348,19 @@ mod:hook_safe(
                             content.element.remove_new_marker_callback(item)
                         end
                     end
-                end,
-            },
-            {
-                pass_type = "text",
-                value = "$",
-                style = item_store_icon_text_style,
-                visibility_function = function(content, style)
+                end
+            }, {
+                pass_type = "text", value = "$", style = item_store_icon_text_style, visibility_function = function(content, style)
                     if content.entry and content.entry.purchase_offer then
                         return true
                     else
                         return false
                     end
-                end,
-                change_function = _symbol_text_change_function,
+                end, change_function = _symbol_text_change_function
             }
         }
-    end)
+    end
+)
 
 mod:hook_safe(
     CLASS.InventoryWeaponCosmeticsView, "on_exit", function(self)
@@ -697,8 +443,7 @@ function find_link_attachment_item_slot_path(target_table, slot_id, item, link_i
 
                     path = path and path .. "." .. k or k
 
-                    local alternative_path, path_item = find_link_attachment_item_slot_path(t, slot_id, item, link_item,
-                        path)
+                    local alternative_path, path_item = find_link_attachment_item_slot_path(t, slot_id, item, link_item, path)
 
                     if alternative_path then
                         return alternative_path, path_item
@@ -713,10 +458,7 @@ end
 
 mod.get_empty_item_function_trinket = function(selected_item)
     local visual_item
-    local trinket_slot_order = {
-        "slot_trinket_1",
-        "slot_trinket_2",
-    }
+    local trinket_slot_order = {"slot_trinket_1", "slot_trinket_2"}
 
     if selected_item.gear then
         visual_item = MasterItems.create_preview_item_instance(selected_item)
@@ -731,8 +473,7 @@ mod.get_empty_item_function_trinket = function(selected_item)
         local link_item_to_slot = true
 
         if visual_item.__gear.masterDataInstance.overrides then
-            find_link_attachment_item_slot_path(visual_item.__gear.masterDataInstance.overrides, slot_id, nil,
-                link_item_to_slot)
+            find_link_attachment_item_slot_path(visual_item.__gear.masterDataInstance.overrides, slot_id, nil, link_item_to_slot)
         end
 
         if find_link_attachment_item_slot_path(visual_item.__master_item, slot_id, nil, link_item_to_slot) then
@@ -762,256 +503,75 @@ mod.get_empty_item_function_skin = function(selected_item)
     return visual_item
 end
 
-local FALLBACK_ITEMS_BY_SLOT = {
-    slot_animation_emote_1 = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_animation_emote_2 = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_animation_emote_3 = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_animation_emote_4 = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_animation_emote_5 = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_animation_end_of_round = "content/items/animations/emotes/emote_human_greeting_001_wave_01",
-    slot_body_arms = "content/items/characters/player/human/attachments_default/slot_body_arms",
-    slot_body_eye_color = "content/items/characters/player/eye_colors/eye_color_blue_01",
-    slot_body_face = "content/items/characters/player/human/attachments_default/slot_body_face",
-    slot_body_face_hair = "content/items/characters/player/human/attachments_default/slot_body_face",
-    slot_body_face_implant = "content/items/characters/player/human/attachments_default/slot_body_face",
-    slot_body_face_scar = "content/items/characters/player/human/attachments_default/slot_body_face",
-    slot_body_face_tattoo = "content/items/characters/player/human/attachments_default/slot_body_face",
-    slot_body_hair = "content/items/characters/player/human/attachments_default/slot_body_hair",
-    slot_body_hair_color = "content/items/characters/player/hair_colors/hair_color_brown_01",
-    slot_body_legs = "content/items/characters/player/human/attachments_default/slot_body_legs",
-    slot_body_skin_color = "content/items/characters/player/skin_colors/skin_color_pale_01",
-    slot_body_tattoo = "content/items/characters/player/human/attachments_default/slot_body_torso",
-    slot_body_torso = "content/items/characters/player/human/attachments_default/slot_body_torso",
-    slot_character_title = "content/items/titles/title_default",
-    slot_device = "content/items/devices/empty_device",
-    slot_gear_extra_cosmetic = "content/items/characters/player/human/attachments_default/slot_attachment",
-    slot_gear_head = "content/items/characters/player/human/attachments_default/slot_gear_head",
-    slot_gear_lowerbody = "content/items/characters/player/human/attachments_default/slot_gear_legs",
-    slot_gear_upperbody = "content/items/characters/player/human/attachments_default/slot_gear_torso",
-    slot_insignia = "content/items/2d/insignias/insignia_default",
-    slot_pocketable = "content/items/pocketable/empty_pocketable",
-    slot_pocketable_small = "content/items/pocketable/empty_pocketable",
-    slot_portrait_frame = "content/items/2d/portrait_frames/portrait_frame_default",
-    slot_primary = "content/items/weapons/player/melee/unarmed",
-    slot_secondary = "content/items/weapons/player/melee/unarmed",
-    slot_skin_set = "content/items/characters/player/sets/empty_set",
-    slot_trinket_1 = "content/items/weapons/player/trinkets/empty_trinket",
-    slot_unarmed = "content/items/weapons/player/melee/unarmed",
-    slot_weapon_skin = "content/items/weapons/player/skins/lasgun/lasgun_p1_m001",
-}
-
-if BUILD == "release" then
-    FALLBACK_ITEMS_BY_SLOT.slot_body_face_tattoo = "content/items/characters/player/human/face_tattoo/empty_face_tattoo"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_face_scar = "content/items/characters/player/human/face_scars/empty_face_scar"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_face_hair = "content/items/characters/player/human/face_hair/empty_face_hair"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_hair = "content/items/characters/player/human/hair/empty_hair"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_tattoo = "content/items/characters/player/human/body_tattoo/empty_body_tattoo"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_eye_color = "content/items/characters/player/eye_colors/eye_color_blue_01"
-    FALLBACK_ITEMS_BY_SLOT.slot_body_hair_color = "content/items/characters/player/hair_colors/hair_color_brown_01"
-    FALLBACK_ITEMS_BY_SLOT.slot_gear_extra_cosmetic = "items/characters/player/human/backpacks/empty_backpack"
-    FALLBACK_ITEMS_BY_SLOT.slot_gear_head = "content/items/characters/player/human/gear_head/empty_headgear"
-    FALLBACK_ITEMS_BY_SLOT.slot_gear_lowerbody = "content/items/characters/player/human/gear_lowerbody/empty_lowerbody"
-    FALLBACK_ITEMS_BY_SLOT.slot_gear_upperbody = "content/items/characters/player/human/gear_upperbody/empty_upperbody"
-end
-
-local function _fallback_item(gear)
-    local instance_id = gear.masterDataInstance.id
-
-    Log.error("MasterItemCache", string.format("No master data for item with id %s", instance_id))
-
-    local slot = gear.slots and gear.slots[1]
-    local fallback_name = slot and FALLBACK_ITEMS_BY_SLOT[slot]
-
-    if not fallback_name then
-        Log.error("MasterItemCache", string.format("No fallback item found for %s in slot %s", instance_id, slot))
-
-        return nil
-    end
-
-    Log.warning("MasterItemCache", string.format("Using fallback with name %s", fallback_name))
-
-    local fallback = rawget(MasterItems.get_cached(), fallback_name)
-
-    return fallback
-end
-
-local _merge_item_data_recursive
-
-function _merge_item_data_recursive(dest, source)
-    for key, value in pairs(source) do
-        local is_table = type(value) == "table"
-
-        if value == source then
-            dest[key] = dest
-        elseif is_table and type(dest[key]) == "table" then
-            _merge_item_data_recursive(dest[key], value)
-        else
-            dest[key] = value
-        end
-    end
-
-    return dest
-end
-
-local function _validate_overrides(overrides)
-    local traits = overrides.traits
-
-    if traits then
-        for i = #traits, 1, -1 do
-            local data = traits[i]
-            local trait_id = data.id
-            local trait_exists = rawget(MasterItems.get_cached(), trait_id)
-
-            if not trait_exists then
-                table.remove(traits, i)
-            end
-        end
-    end
-
-    local perks = overrides.perks
-
-    if perks then
-        for i = #perks, 1, -1 do
-            local data = perks[i]
-            local perk_id = data.id
-            local perk_exists = rawget(MasterItems.get_cached(), perk_id)
-
-            if not perk_exists then
-                table.remove(perks, i)
-            end
-        end
-    end
-end
-
-local function _update_master_data(item_instance)
-    rawset(item_instance, "__master_ver", MasterItems.get_cached_version())
-
-    local gear = rawget(item_instance, "__gear")
-    local item = rawget(MasterItems.get_cached(), gear.masterDataInstance.id)
-
-    item = item or _fallback_item(gear)
-
-    if item then
-        local clone = table.clone(item)
-        local overrides = gear.masterDataInstance.overrides
-
-        if overrides then
-            _validate_overrides(overrides)
-            _merge_item_data_recursive(clone, overrides)
-        end
-
-        local count = gear.count
-
-        if count then
-            clone.count = count
-        end
-
-        local temp_overrides = rawget(item_instance, "__temp_overrides")
-
-        if temp_overrides then
-            _merge_item_data_recursive(clone, temp_overrides)
-        end
-
-        rawset(item_instance, "__master_item", clone)
-        rawset(item_instance, "set_temporary_overrides", function(self, new_temp_overrides)
-            rawset(item_instance, "__temp_overrides", new_temp_overrides)
-
-            return _update_master_data(item_instance)
-        end)
-
-        return true
-    end
-
-    return false
-end
-
 local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
     local gearid = math.uuid() or gear_id
 
-    local masterDataInstance = {
-        id = item.name
-    }
+    local masterDataInstance = {id = item.name}
 
-    local slots = {
-        item.slots
-    }
+    local slots = {item.slots}
 
-    local __gear = {
-        uuid = gearid,
-        masterDataInstance = masterDataInstance,
-        slots = slots
-    }
+    local __gear = {uuid = gearid, masterDataInstance = masterDataInstance, slots = slots}
 
     local item_instance = {
-        __master_item = item,
-        __gear = __gear,
-        __gear_id = gearid,
-        __original_gear_id = is_preview_item and gear_id,
-        __is_preview_item = is_preview_item and true or false,
-        __locked = true
+        __master_item = item, __gear = __gear, __gear_id = gearid, __original_gear_id = is_preview_item and gear_id,
+        __is_preview_item = is_preview_item and true or false, __locked = true
     }
 
-    setmetatable(item_instance, {
-        __index = function(t, field_name)
-            local master_ver = rawget(item_instance, "__master_ver")
+    setmetatable(
+        item_instance, {
+            __index = function(t, field_name)
+                local master_ver = rawget(item_instance, "__master_ver")
 
-            if master_ver ~= MasterItems.get_cached_version() then
-                local success = _update_master_data(item_instance)
+                if master_ver ~= MasterItems.get_cached_version() then
+                    local success = MasterItems.update_master_data(item_instance)
 
-                if not success then
-                    Log.error("MasterItems", "[_item_plus_overrides][1] could not update master data with %s",
-                        gear.masterDataInstance.id)
+                    if not success then
+                        Log.error("MasterItems", "[_item_plus_overrides][1] could not update master data with %s", gear.masterDataInstance.id)
+
+                        return nil
+                    end
+                end
+
+                if field_name == "gear_id" then
+                    return rawget(item_instance, "__gear_id")
+                end
+
+                if field_name == "gear" then
+                    return rawget(item_instance, "__gear")
+                end
+
+                local master_item = rawget(item_instance, "__master_item")
+
+                if not master_item then
+                    Log.warning("MasterItemCache", string.format("No master data for item with id %s", gear.masterDataInstance.id))
 
                     return nil
                 end
-            end
 
-            if field_name == "gear_id" then
-                return rawget(item_instance, "__gear_id")
-            end
+                local field_value = master_item[field_name]
 
-            if field_name == "gear" then
-                return rawget(item_instance, "__gear")
-            end
+                if field_name == "rarity" and field_value == -1 then
+                    return nil
+                end
 
-            local master_item = rawget(item_instance, "__master_item")
-
-            if not master_item then
-                Log.warning("MasterItemCache",
-                    string.format("No master data for item with id %s", gear.masterDataInstance.id))
-
-                return nil
-            end
-
-            local field_value = master_item[field_name]
-
-            if field_name == "rarity" and field_value == -1 then
-                return nil
-            end
-
-            return field_value
-        end,
-        __newindex = function(t, field_name, value)
-            if is_preview_item then
+                return field_value
+            end, __newindex = function(t, field_name, value)
                 rawset(t, field_name, value)
-            else
-                ferror("Not allowed to modify inventory items - %s[%s]", rawget(item_instance, "__gear_id"), field_name)
+
+            end, __tostring = function(t)
+                local master_item = rawget(item_instance, "__master_item")
+
+                return string.format(
+                           "master_item: [%s] gear_id: [%s]", tostring(master_item and master_item.name), tostring(rawget(item_instance, "__gear_id"))
+                       )
             end
-        end,
-        __tostring = function(t)
-            local master_item = rawget(item_instance, "__master_item")
+        }
+    )
 
-            return string.format("master_item: [%s] gear_id: [%s]", tostring(master_item and master_item.name),
-                tostring(rawget(item_instance, "__gear_id")))
-        end,
-    })
-
-
-    local success = _update_master_data(item_instance)
+    local success = MasterItems.update_master_data(item_instance)
 
     if not success then
-        Log.error("MasterItems", "[_item_plus_overrides][2] could not update master data with %s",
-            gear.masterDataInstance.id)
+        Log.error("MasterItems", "[_item_plus_overrides][2] could not update master data with %s", gear.masterDataInstance.id)
 
         return nil
     end
@@ -1027,30 +587,17 @@ local add_definitions = function(definitions)
     definitions.scenegraph_definition = definitions.scenegraph_definition or {}
     definitions.widget_definitions = definitions.widget_definitions or {}
 
-    local store_button_size = {
-        374,
-        76,
-    }
+    local store_button_size = {374, 76}
 
     definitions.scenegraph_definition.weapon_store_button = {
-        horizontal_alignment = "right",
-        parent = "info_box",
-        vertical_alignment = "bottom",
-        size = store_button_size,
-        position = {
-            0,
-            65,
-            1,
-        },
+        horizontal_alignment = "right", parent = "info_box", vertical_alignment = "bottom", size = store_button_size, position = {0, 65, 1}
     }
 
-    definitions.widget_definitions.weapon_store_button = UIWidget.create_definition(ButtonPassTemplates.default_button,
-        "weapon_store_button", {
-            gamepad_action = "confirm_pressed",
-            visible = false,
-            original_text = Utf8.upper(Localize("loc_VLWC_store")),
-            hotspot = {},
-        })
+    definitions.widget_definitions.weapon_store_button = UIWidget.create_definition(
+                                                             ButtonPassTemplates.default_button, "weapon_store_button", {
+            gamepad_action = "confirm_pressed", visible = false, original_text = Utf8.upper(Localize("loc_VLWC_store")), hotspot = {}
+        }
+                                                         )
 
     local should_add_inspect = true
 
@@ -1062,63 +609,49 @@ local add_definitions = function(definitions)
 
     if should_add_inspect then
         definitions.legend_inputs[#definitions.legend_inputs + 1] = {
-            on_pressed_callback = "cb_on_inspect_pressed",
-            input_action = "hotkey_item_inspect",
-            display_name = "loc_VLWC_inspect",
-            alignment = "right_alignment",
-            visibility_function = function(parent)
-                local previewed_item = parent._previewed_item
-                local slot_weapon_skin = previewed_item.slot_weapon_skin
-                local skin_item = slot_weapon_skin.__master_item
+            on_pressed_callback = "cb_on_inspect_pressed", input_action = "hotkey_item_inspect", display_name = "loc_VLWC_inspect",
+            alignment = "right_alignment", visibility_function = function(parent)
+                if parent._previewed_item then
+                    local previewed_item = parent._previewed_item
+                    local slot_weapon_skin = previewed_item.slot_weapon_skin
+                    local skin_item = slot_weapon_skin.__master_item
 
-                if skin_item then
-                    return true
+                    if skin_item then
+                        return true
+                    end
                 end
 
                 return false
-            end,
+            end
         }
     end
 end
 
-mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view_definitions",
-    function(definitions)
+mod:hook_require(
+    "scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view_definitions", function(definitions)
         add_definitions(definitions)
-    end)
+    end
+)
 
 Category_index = 1
 
 local STORE_LAYOUT = {
     {
-        display_name = "loc_premium_store_category_title_featured",
-        storefront = "premium_store_featured",
-        telemetry_name = "featured",
-        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
-    },
-    {
-        display_name = "loc_premium_store_category_skins_title_veteran",
-        storefront = "premium_store_skins_veteran",
-        telemetry_name = "veteran",
-        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
-    },
-    {
-        display_name = "loc_premium_store_category_skins_title_zealot",
-        storefront = "premium_store_skins_zealot",
-        telemetry_name = "zealot",
-        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
-    },
-    {
-        display_name = "loc_premium_store_category_skins_title_psyker",
-        storefront = "premium_store_skins_psyker",
-        telemetry_name = "psyker",
-        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
-    },
-    {
-        display_name = "loc_premium_store_category_skins_title_ogryn",
-        storefront = "premium_store_skins_ogryn",
-        telemetry_name = "ogryn",
-        template = ButtonPassTemplates.terminal_tab_menu_button,
-    },
+        display_name = "loc_premium_store_category_title_featured", storefront = "premium_store_featured", telemetry_name = "featured",
+        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button
+    }, {
+        display_name = "loc_premium_store_category_skins_title_veteran", storefront = "premium_store_skins_veteran", telemetry_name = "veteran",
+        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button
+    }, {
+        display_name = "loc_premium_store_category_skins_title_zealot", storefront = "premium_store_skins_zealot", telemetry_name = "zealot",
+        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button
+    }, {
+        display_name = "loc_premium_store_category_skins_title_psyker", storefront = "premium_store_skins_psyker", telemetry_name = "psyker",
+        template = ButtonPassTemplates.terminal_tab_menu_with_divider_button
+    }, {
+        display_name = "loc_premium_store_category_skins_title_ogryn", storefront = "premium_store_skins_ogryn", telemetry_name = "ogryn",
+        template = ButtonPassTemplates.terminal_tab_menu_button
+    }
 }
 local opened_store = false
 StoreView._on_page_index_selected = function(self, page_index)
@@ -1224,10 +757,7 @@ StoreView._initialize_opening_page = function(self)
         store_category_index = Category_index
     end
 
-    local path = {
-        category_index = store_category_index,
-        page_index = 1,
-    }
+    local path = {category_index = store_category_index, page_index = 1}
 
     self:_open_navigation_path(path)
 end
@@ -1290,8 +820,7 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
             if filter_on_weapon_template then
                 local weapon_template_restriction = item.weapon_template_restriction
 
-                valid = weapon_template_restriction and
-                    table.contains(weapon_template_restriction, selected_item_weapon_template) and true or false
+                valid = weapon_template_restriction and table.contains(weapon_template_restriction, selected_item_weapon_template) and true or false
             end
             if valid then
                 local visual_item
@@ -1302,8 +831,7 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                     unlocked_trinkets[#unlocked_trinkets + 1] = item
                 end
                 local gear_id = item.gear_id
-                local is_new = self._context and self._context.new_items_gear_ids and
-                    self._context.new_items_gear_ids[gear_id]
+                local is_new = self._context and self._context.new_items_gear_ids and self._context.new_items_gear_ids[gear_id]
                 local remove_new_marker_callback
 
                 if is_new then
@@ -1325,18 +853,67 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
 
     if self._selected_tab_index ~= 3 then
         -- Add divider
-        layout[#layout + 1] = {
-            widget_type = "divider"
-        }
+        layout[#layout + 1] = {widget_type = "divider"}
     end
 
     local _store_promise = mod.grab_current_commodores_items(self)
-    _store_promise:next(function()
-        if selected_item_slot == "slot_weapon_skin" and not string.find("trinket", selected_item.name) then
-            for cosmetic_group_name, items in pairs(current_weapon_cosmetics) do
+    _store_promise:next(
+        function()
+            local MasterItems = require("scripts/backend/master_items")
+            if selected_item_slot == "slot_weapon_skin" and not string.find("trinket", selected_item.name) then
+                for cosmetic_group_name, items in pairs(current_weapon_cosmetics) do
+                    -- Add locked cosmetics
+                    for i = 1, #items do
+                        local item = _item_plus_overrides(items[i])
+
+                        local valid = true
+
+                        if item then
+                            if filter_on_weapon_template then
+                                local weapon_template_restriction = item.weapon_template_restriction
+
+                                valid = weapon_template_restriction and table.contains(weapon_template_restriction, selected_item_weapon_template) and
+                                            true or false
+                            end
+                            if valid then
+                                local visual_item
+                                local continue = true
+
+                                visual_item = mod.generate_visual_item_function_skin(item, selected_item)
+
+                                local gear_id = item.gear_id
+                                local is_new = self._context and self._context.new_items_gear_ids and self._context.new_items_gear_ids[gear_id]
+                                local remove_new_marker_callback
+
+                                if is_new then
+                                    remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
+                                end
+
+                                -- Filter out unknown sources
+                                if item.source == nil or item.source < 1 then
+                                    continue = false
+                                end
+
+                                -- Filter out all not available items
+                                local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
+
+                                if continue then
+                                    lockedItems[#lockedItems + 1] = item
+                                    layout[#layout + 1] = {
+                                        widget_type = "gear_item", -- item_icon
+                                        sort_data = item, item = visual_item, real_item = item, slot_name = selected_item_slot,
+                                        new_item_marker = is_new, remove_new_marker_callback = remove_new_marker_callback, locked = true,
+                                        slot = selected_item_slot, purchase_offer = purchase_offer
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            elseif selected_item_slot == "slot_trinket_1" then
                 -- Add locked cosmetics
-                for i = 1, #items do
-                    local item = _item_plus_overrides(items[i])
+                for i = 1, #current_weapon_cosmetics do
+                    local item = _item_plus_overrides(current_weapon_cosmetics[i])
 
                     local valid = true
 
@@ -1344,24 +921,26 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                         if filter_on_weapon_template then
                             local weapon_template_restriction = item.weapon_template_restriction
 
-                            valid = weapon_template_restriction and
-                                table.contains(weapon_template_restriction, selected_item_weapon_template) and true or
-                                false
+                            valid = weapon_template_restriction and table.contains(weapon_template_restriction, selected_item_weapon_template) and
+                                        true or false
                         end
                         if valid then
                             local visual_item
                             local continue = true
 
-                            visual_item = mod.generate_visual_item_function_skin(item, selected_item)
+                            visual_item = mod.generate_visual_item_function_trinket(item, selected_item)
+                            for j = 1, #unlocked_trinkets do
+                                if item.name == unlocked_trinkets[j].__master_item.name then
+                                    continue = false
+                                end
+                            end
 
                             local gear_id = item.gear_id
-                            local is_new = self._context and self._context.new_items_gear_ids and
-                                self._context.new_items_gear_ids[gear_id]
+                            local is_new = self._context and self._context.new_items_gear_ids and self._context.new_items_gear_ids[gear_id]
                             local remove_new_marker_callback
 
                             if is_new then
-                                remove_new_marker_callback = self._parent and
-                                    callback(self._parent, "remove_new_item_mark")
+                                remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
                             end
 
                             -- Filter out unknown sources
@@ -1376,14 +955,8 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                                 lockedItems[#lockedItems + 1] = item
                                 layout[#layout + 1] = {
                                     widget_type = "gear_item", -- item_icon
-                                    sort_data = item,
-                                    item = visual_item,
-                                    real_item = item,
-                                    slot_name = selected_item_slot,
-                                    new_item_marker = is_new,
-                                    remove_new_marker_callback = remove_new_marker_callback,
-                                    locked = true,
-                                    slot = selected_item_slot,
+                                    sort_data = item, item = visual_item, real_item = item, slot_name = selected_item_slot, new_item_marker = is_new,
+                                    remove_new_marker_callback = remove_new_marker_callback, locked = true, slot = selected_item_slot,
                                     purchase_offer = purchase_offer
                                 }
                             end
@@ -1391,78 +964,16 @@ mod.list_locked_weapon_cosmetics = function(self, selected_item)
                     end
                 end
             end
-        elseif selected_item_slot == "slot_trinket_1" then
-            -- Add locked cosmetics
-            for i = 1, #current_weapon_cosmetics do
-                local item = _item_plus_overrides(current_weapon_cosmetics[i])
-
-                local valid = true
-
-                if item then
-                    if filter_on_weapon_template then
-                        local weapon_template_restriction = item.weapon_template_restriction
-
-                        valid = weapon_template_restriction and
-                            table.contains(weapon_template_restriction, selected_item_weapon_template) and true or
-                            false
-                    end
-                    if valid then
-                        local visual_item
-                        local continue = true
-
-                        visual_item = mod.generate_visual_item_function_trinket(item, selected_item)
-                        for j = 1, #unlocked_trinkets do
-                            if item.name == unlocked_trinkets[j].__master_item.name then
-                                continue = false
-                            end
-                        end
-
-                        local gear_id = item.gear_id
-                        local is_new = self._context and self._context.new_items_gear_ids and
-                            self._context.new_items_gear_ids[gear_id]
-                        local remove_new_marker_callback
-
-                        if is_new then
-                            remove_new_marker_callback = self._parent and
-                                callback(self._parent, "remove_new_item_mark")
-                        end
-
-                        -- Filter out unknown sources
-                        if item.source == nil or item.source < 1 then
-                            continue = false
-                        end
-
-                        -- Filter out all not available items
-                        local purchase_offer = mod.get_item_in_current_commodores(self, gear_id, item.name)
-
-                        if continue then
-                            lockedItems[#lockedItems + 1] = item
-                            layout[#layout + 1] = {
-                                widget_type = "gear_item", -- item_icon
-                                sort_data = item,
-                                item = visual_item,
-                                real_item = item,
-                                slot_name = selected_item_slot,
-                                new_item_marker = is_new,
-                                remove_new_marker_callback = remove_new_marker_callback,
-                                locked = true,
-                                slot = selected_item_slot,
-                                purchase_offer = purchase_offer
-                            }
-                        end
-                    end
-                end
+            for _, item in pairs(self._offer_items_layout) do
+                layout[#layout + 1] = item
             end
-        end
-        for _, item in pairs(self._offer_items_layout) do
-            layout[#layout + 1] = item
-        end
-        self._offer_items_layout = table.clone_instance(layout)
-        self:_present_layout_by_slot_filter()
-        alreadyRan = true
+            self._offer_items_layout = table.clone_instance(layout)
+            self:_present_layout_by_slot_filter()
+            alreadyRan = true
 
-        mod.focus_on_default_item(self)
-    end)
+            mod.focus_on_default_item(self)
+        end
+    )
 end
 
 mod.get_weapon_cosmetic_items = function(self)
@@ -1473,8 +984,7 @@ mod.get_weapon_cosmetic_items = function(self)
 
     local total_items = 0
     if weapon_cosmetic_items["slot_weapon_skin"] and weapon_cosmetic_items["slot_trinket_1"] then
-        total_items = total_items + #weapon_cosmetic_items["slot_weapon_skin"] + #weapon_cosmetic_items
-            ["slot_trinket_1"]
+        total_items = total_items + #weapon_cosmetic_items["slot_weapon_skin"] + #weapon_cosmetic_items["slot_trinket_1"]
         getTrinkets = false
         getWeapons = false
     end
@@ -1539,8 +1049,7 @@ mod.get_weapon_cosmetic_items = function(self)
                         end
 
                         if locked then
-                            weapon_cosmetic_items[slot][item.preview_item][#weapon_cosmetic_items[slot][item.preview_item] + 1] =
-                                item
+                            weapon_cosmetic_items[slot][item.preview_item][#weapon_cosmetic_items[slot][item.preview_item] + 1] = item
                         end
                     end
                     if slot == "slot_trinket_1" and getTrinkets then
@@ -1559,212 +1068,208 @@ mod.get_weapon_cosmetic_items = function(self)
 end
 
 local current_commodores_offers = {}
-mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view", function(instance)
-    instance.cb_on_inspect_pressed = function(self)
-        local view_name = "cosmetics_inspect_view"
+mod:hook_require(
+    "scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view", function(instance)
+        instance.cb_on_inspect_pressed = function(self)
+            local view_name = "cosmetics_inspect_view"
 
-        local previewed_item = self._previewed_item
+            local previewed_item = self._previewed_item
 
-        if self._previewed_item.slot_weapon_skin then
-            previewed_item = self._previewed_item.slot_weapon_skin.__master_item
-        end
-
-        local context
-
-        if previewed_item then
-            local item_type = previewed_item.item_type
-            local is_weapon = item_type == "WEAPON_MELEE" or item_type == "WEAPON_RANGED"
-
-            if is_weapon or item_type == "GADGET" then
-                view_name = "inventory_weapon_details_view"
+            if self._previewed_item.slot_weapon_skin then
+                previewed_item = self._previewed_item.slot_weapon_skin.__master_item
             end
 
-            local player = self:_player()
-            local player_profile = player:profile()
-            local include_skin_item_texts = true
-            local item = item_type == "WEAPON_SKIN" and
-                ItemUtils.weapon_skin_preview_item(previewed_item, include_skin_item_texts) or previewed_item
-            local is_item_supported_on_played_character = false
-            local item_archetypes = item.archetypes
+            local context
 
-            if item_archetypes and not table.is_empty(item_archetypes) then
-                is_item_supported_on_played_character = table.array_contains(item_archetypes,
-                    player_profile.archetype.name)
-            else
-                is_item_supported_on_played_character = true
+            if previewed_item then
+                local item_type = previewed_item.item_type
+                local is_weapon = item_type == "WEAPON_MELEE" or item_type == "WEAPON_RANGED"
+
+                if is_weapon or item_type == "GADGET" then
+                    view_name = "inventory_weapon_details_view"
+                end
+
+                local player = self:_player()
+                local player_profile = player:profile()
+                local include_skin_item_texts = true
+                local item = item_type == "WEAPON_SKIN" and ItemUtils.weapon_skin_preview_item(previewed_item, include_skin_item_texts) or
+                                 previewed_item
+                local is_item_supported_on_played_character = false
+                local item_archetypes = item.archetypes
+
+                if item_archetypes and not table.is_empty(item_archetypes) then
+                    is_item_supported_on_played_character = table.array_contains(item_archetypes, player_profile.archetype.name)
+                else
+                    is_item_supported_on_played_character = true
+                end
+
+                local profile = is_item_supported_on_played_character and table.clone_instance(player_profile) or
+                                    ItemUtils.create_mannequin_profile_by_item(item)
+
+                context = {
+                    use_store_appearance = true, profile = profile, preview_with_gear = is_item_supported_on_played_character, preview_item = item
+                }
+
+                if item_type == "WEAPON_SKIN" then
+                    local slots = item.slots
+                    local slot_name = slots[1]
+
+                    profile.loadout[slot_name] = item
+
+                    local archetype = profile.archetype
+                    local breed_name = archetype.breed
+                    local breed = Breeds[breed_name]
+                    local state_machine = breed.inventory_state_machine
+                    local animation_event = item.inventory_animation_event or "inventory_idle_default"
+
+                    context.disable_zoom = true
+                    context.state_machine = state_machine
+                    context.animation_event = animation_event
+                    context.wield_slot = slot_name
+                end
             end
 
-            local profile = is_item_supported_on_played_character and table.clone_instance(player_profile) or
-                ItemUtils.create_mannequin_profile_by_item(item)
+            if context and not Managers.ui:view_active(view_name) then
+                Managers.ui:open_view(view_name, nil, nil, nil, nil, context)
 
-            context = {
-                use_store_appearance = true,
-                profile = profile,
-                preview_with_gear = is_item_supported_on_played_character,
-                preview_item = item,
-            }
-
-            if item_type == "WEAPON_SKIN" then
-                local slots = item.slots
-                local slot_name = slots[1]
-
-                profile.loadout[slot_name] = item
-
-                local archetype = profile.archetype
-                local breed_name = archetype.breed
-                local breed = Breeds[breed_name]
-                local state_machine = breed.inventory_state_machine
-                local animation_event = item.inventory_animation_event or "inventory_idle_default"
-
-                context.disable_zoom = true
-                context.state_machine = state_machine
-                context.animation_event = animation_event
-                context.wield_slot = slot_name
+                self._inpect_view_opened = view_name
             end
         end
 
-        if context and not Managers.ui:view_active(view_name) then
-            Managers.ui:open_view(view_name, nil, nil, nil, nil, context)
+        instance.cb_on_weapon_store_pressed = function(self)
+            local previewed_item = self._previewed_item
+            local presentation_profile = self._presentation_profile
+            local presentation_loadout = presentation_profile.loadout
+            local preview_profile_equipped = self._preview_profile_equipped_items
 
-            self._inpect_view_opened = view_name
+            local offer = Selected_purchase_offer
+            if offer then
+                local player = Managers.player:local_player(1)
+                local character_id = player:character_id()
+                local archetype_name = player:archetype_name()
+
+                local page_index = 1
+
+                if archetype_name == "veteran" then
+                    Category_index = 2
+                elseif archetype_name == "zealot" then
+                    Category_index = 3
+                elseif archetype_name == "psyker" then
+                    Category_index = 4
+                elseif archetype_name == "ogryn" then
+                    Category_index = 5
+                end
+
+                if CCVI then
+                    CCVI.Category_index = Category_index
+                end
+
+                local ui_manager = Managers.ui
+
+                if ui_manager then
+                    local context = {hub_interaction = true}
+
+                    ui_manager:open_view("store_view", nil, nil, nil, nil, context)
+                end
+            end
         end
-    end
 
-    instance.cb_on_weapon_store_pressed = function(self)
-        local previewed_item = self._previewed_item
-        local presentation_profile = self._presentation_profile
-        local presentation_loadout = presentation_profile.loadout
-        local preview_profile_equipped = self._preview_profile_equipped_items
+        instance._register_button_callbacks = function(self)
+            local widgets_by_name = self._widgets_by_name
+            widgets_by_name.weapon_store_button.content.hotspot.pressed_callback = callback(self, "cb_on_weapon_store_pressed")
+            local equip_button = widgets_by_name.equip_button
 
-        local offer = Selected_purchase_offer
-        if offer then
+            equip_button.content.hotspot.pressed_callback = callback(self, "cb_on_equip_pressed")
+        end
+
+        mod.grab_current_commodores_items = function(self)
             local player = Managers.player:local_player(1)
             local character_id = player:character_id()
             local archetype_name = player:archetype_name()
-
-            local page_index = 1
-
-            if archetype_name == "veteran" then Category_index = 2 elseif archetype_name == "zealot" then Category_index = 3 elseif archetype_name == "psyker" then Category_index = 4 elseif archetype_name == "ogryn" then Category_index = 5 end
-
-            if CCVI then
-                CCVI.Category_index = Category_index
+            local storefront = "premium_store_featured"
+            if archetype_name == "veteran" then
+                storefront = "premium_store_skins_veteran"
+            elseif archetype_name == "zealot" then
+                storefront = "premium_store_skins_zealot"
+            elseif archetype_name == "psyker" then
+                storefront = "premium_store_skins_psyker"
+            elseif archetype_name == "ogryn" then
+                storefront = "premium_store_skins_ogryn"
             end
 
-            local ui_manager = Managers.ui
+            local store_service = Managers.data_service.store
 
-            if ui_manager then
-                local context = {
-                    hub_interaction = true
+            local _store_promise = store_service:get_premium_store(storefront)
+
+            if not _store_promise then
+                return Promise:resolved()
+            end
+
+            return _store_promise:next(
+                       function(data)
+                    for i = 1, #data.offers do
+                        data.offers[i]["layout_config"] = data.layout_config
+                        table.insert(current_commodores_offers, data.offers[i])
+                    end
+                end
+                   )
+        end
+
+        instance._setup_sort_options = function(self)
+            if not self._sort_options then
+                self._sort_options = {}
+                self._sort_options[#self._sort_options + 1] = {
+                    display_name = Localize(
+                        "loc_inventory_item_grid_sort_title_format_increasing_letters", true,
+                        {sort_name = Localize("loc_inventory_item_grid_sort_title_name")}
+                    ), sort_function = function(a, b)
+                        local a_locked, b_locked = a.locked, b.locked
+
+                        if not a_locked and b_locked == true then
+                            return true
+                        elseif not b_locked and a_locked == true then
+                            return false
+                        end
+
+                        if a.widget_type == "divider" and not b_locked or b.widget_type == "divider" and a_locked == true then
+                            return false
+                        elseif a.widget_type == "divider" and b_locked == true or b.widget_type == "divider" and not a_locked then
+                            return true
+                        end
+
+                        return ItemUtils.sort_element_key_comparator({"<", "sort_data", ItemUtils.compare_item_name})(a, b)
+                    end
                 }
+                self._sort_options[#self._sort_options + 1] = {
+                    display_name = Localize(
+                        "loc_inventory_item_grid_sort_title_format_decreasing_letters", true,
+                        {sort_name = Localize("loc_inventory_item_grid_sort_title_name")}
+                    ), sort_function = function(a, b)
+                        local a_locked, b_locked = a.locked, b.locked
 
-                ui_manager:open_view("store_view", nil, nil, nil, nil, context)
+                        if not a_locked and b_locked == true then
+                            return true
+                        elseif not b_locked and a_locked == true then
+                            return false
+                        end
+
+                        if a.widget_type == "divider" and not b_locked or b.widget_type == "divider" and a_locked == true then
+                            return false
+                        elseif a.widget_type == "divider" and b_locked == true or b.widget_type == "divider" and not a_locked then
+                            return true
+                        end
+
+                        return ItemUtils.sort_element_key_comparator({">", "sort_data", ItemUtils.compare_item_name})(a, b)
+                    end
+                }
             end
+
+            local sort_callback = callback(self, "cb_on_sort_button_pressed")
+
+            self._item_grid:setup_sort_button(self._sort_options, sort_callback)
         end
     end
-
-    instance._register_button_callbacks = function(self)
-        local widgets_by_name = self._widgets_by_name
-        widgets_by_name.weapon_store_button.content.hotspot.pressed_callback = callback(self,
-            "cb_on_weapon_store_pressed")
-        local equip_button = widgets_by_name.equip_button
-
-        equip_button.content.hotspot.pressed_callback = callback(self, "cb_on_equip_pressed")
-    end
-
-
-    mod.grab_current_commodores_items = function(self)
-        local player = Managers.player:local_player(1)
-        local character_id = player:character_id()
-        local archetype_name = player:archetype_name()
-        local storefront = "premium_store_featured"
-        if archetype_name == "veteran" then
-            storefront = "premium_store_skins_veteran"
-        elseif archetype_name == "zealot" then
-            storefront = "premium_store_skins_zealot"
-        elseif archetype_name == "psyker" then
-            storefront = "premium_store_skins_psyker"
-        elseif archetype_name == "ogryn" then
-            storefront = "premium_store_skins_ogryn"
-        end
-
-        local store_service = Managers.data_service.store
-
-        local _store_promise = store_service:get_premium_store(storefront)
-
-        if not _store_promise then
-            return Promise:resolved()
-        end
-
-        return _store_promise:next(function(data)
-            for i = 1, #data.offers do
-                data.offers[i]["layout_config"] = data.layout_config
-                table.insert(current_commodores_offers, data.offers[i])
-            end
-        end)
-    end
-
-    instance._setup_sort_options = function(self)
-        if not self._sort_options then
-            self._sort_options = {}
-            self._sort_options[#self._sort_options + 1] = {
-                display_name = Localize("loc_inventory_item_grid_sort_title_format_increasing_letters", true, {
-                    sort_name = Localize("loc_inventory_item_grid_sort_title_name"),
-                }),
-                sort_function = function(a, b)
-                    local a_locked, b_locked = a.locked, b.locked
-
-                    if not a_locked and b_locked == true then
-                        return true
-                    elseif not b_locked and a_locked == true then
-                        return false
-                    end
-
-                    if a.widget_type == "divider" and not b_locked or b.widget_type == "divider" and a_locked == true then
-                        return false
-                    elseif a.widget_type == "divider" and b_locked == true or b.widget_type == "divider" and not a_locked then
-                        return true
-                    end
-
-                    return ItemUtils.sort_element_key_comparator({
-                        "<",
-                        "sort_data",
-                        ItemUtils.compare_item_name,
-                    })(a, b)
-                end,
-            }
-            self._sort_options[#self._sort_options + 1] = {
-                display_name = Localize("loc_inventory_item_grid_sort_title_format_decreasing_letters", true, {
-                    sort_name = Localize("loc_inventory_item_grid_sort_title_name"),
-                }),
-                sort_function = function(a, b)
-                    local a_locked, b_locked = a.locked, b.locked
-
-                    if not a_locked and b_locked == true then
-                        return true
-                    elseif not b_locked and a_locked == true then
-                        return false
-                    end
-
-                    if a.widget_type == "divider" and not b_locked or b.widget_type == "divider" and a_locked == true then
-                        return false
-                    elseif a.widget_type == "divider" and b_locked == true or b.widget_type == "divider" and not a_locked then
-                        return true
-                    end
-
-                    return ItemUtils.sort_element_key_comparator({
-                        ">",
-                        "sort_data",
-                        ItemUtils.compare_item_name,
-                    })(a, b)
-                end,
-            }
-        end
-
-        local sort_callback = callback(self, "cb_on_sort_button_pressed")
-
-        self._item_grid:setup_sort_button(self._sort_options, sort_callback)
-    end
-end)
+)
 
 mod.get_item_in_current_commodores = function(self, gearid, item_name)
     if not current_commodores_offers then
