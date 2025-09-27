@@ -476,10 +476,23 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 end)
 
 mod:hook(CLASS.InventoryView, "on_enter", function(func, self, ...)
-	CLASS.InventoryView.super.on_enter(self)
-	mod.grab_current_commodores_items(self)
-
 	func(self, ...)
+
+	mod.grab_current_commodores_items(self)
+end)
+
+mod:hook(CLASS.InventoryView, "on_exit", function(func, self, ...)
+	func(self, ...)
+
+	local input_manager = Managers.input
+	if input_manager and input_manager.release_cursor then
+		input_manager:release_cursor()
+		input_manager:cursor_passed_gamepad(false)
+	end
+
+	if InputDevice and InputDevice.set_cursor_visible then
+		InputDevice.set_cursor_visible(false)
+	end
 end)
 
 -- Add locked gear icons like on the character cosmetics view.
@@ -1020,9 +1033,10 @@ mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ..
 	func(self, ...)
 end)
 
-mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "on_exit", function(self)
-	mod.set_wishlist()
+mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_exit", function(func, self, ...)
+	func(self, ...)
 
+	mod.set_wishlist()
 	ItemPassTemplates.gear_item = default_gear_item
 	Selected_purchase_offer = {}
 	if CCVI then
