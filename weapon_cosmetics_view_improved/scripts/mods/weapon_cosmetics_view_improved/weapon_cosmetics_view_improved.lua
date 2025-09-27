@@ -44,15 +44,10 @@ local trinket_slot_order = {
 	"slot_trinket_2",
 }
 
-local alreadyRan = false
-local display_equip_button = true
-local lockedItems = {}
 local base_item
 current_commodores_offers = {}
 
 mod.grab_current_commodores_items = function(self, archetype)
-	mod:echo("GRABBING STORE ITEMS...")
-
 	local player = Managers.player:local_player(1)
 	local character_id = player:character_id()
 	local archetype_name = player:archetype_name()
@@ -322,14 +317,22 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 
 	-- hide equip button on locked items
 	if element and (self._selected_tab_index == 1 or self._selected_tab_index == 2) then
-		mod.can_item_be_equipped(self, selected_item)
 		local widgets_by_name = self._widgets_by_name
-		widgets_by_name.equip_button.content.visible = display_equip_button
 
+		local can_be_equipped = mod.can_item_be_equipped(self, selected_item)
+		widgets_by_name.equip_button.content.visible = can_be_equipped
+
+		local show_store_button = false
 		if element.purchase_offer then
 			widgets_by_name.weapon_store_button.content.visible = true
+			show_store_button = true
 		else
 			widgets_by_name.weapon_store_button.content.visible = false
+		end
+
+		-- move the item name widget to account for the store button...
+		if show_store_button == true then
+			widgets_by_name.item_name.offset[2] = widgets_by_name.item_name.offset[2] - 80
 		end
 
 		-- find if item is on wishlist
@@ -441,7 +444,6 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		if Selected_purchase_offer then
 			widgets_by_name.wishlist_button.content.visible = true
 		end
-		dbg_wishlist = widgets_by_name.wishlist_button
 
 		if weapon_customization then
 			widgets_by_name.weapon_store_button.offset = {
@@ -470,15 +472,7 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		if CCVI then
 			CCVI.Selected_purchase_offer = Selected_purchase_offer
 		end
-		-- Populate list of locked items
-		if not alreadyRan then
-			--mod.list_locked_weapon_cosmetics(self, selected_item)
-		end
 	end
-end)
-
-mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "cb_switch_tab", function(self, index)
-	alreadyRan = false
 end)
 
 mod:hook(CLASS.InventoryView, "on_enter", function(func, self, ...)
@@ -610,8 +604,404 @@ mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ..
 		7,
 	}
 
-	--[[
+	local weapon_item_size = UISettings.weapon_item_size
+	local weapon_icon_size = UISettings.weapon_icon_size
+	local icon_size = UISettings.icon_size
+	local gadget_size = UISettings.gadget_size
+	local gadget_item_size = UISettings.gadget_item_size
+	local gadget_icon_size = UISettings.gadget_icon_size
+	local item_icon_size = UISettings.item_icon_size
+
+	local item_price_style = table.clone(UIFontSettings.body)
+
+	item_price_style.text_horizontal_alignment = "left"
+	item_price_style.text_vertical_alignment = "bottom"
+	item_price_style.horizontal_alignment = "left"
+	item_price_style.vertical_alignment = "center"
+	item_price_style.offset = {
+		35,
+		-8,
+		12,
+	}
+	item_price_style.font_size = 20
+	item_price_style.text_color = Color.white(255, true)
+	item_price_style.default_color = Color.white(255, true)
+	item_price_style.hover_color = Color.white(255, true)
+
+	local gear_item_price_style = table.clone(item_price_style)
+
+	gear_item_price_style.offset = {
+		25,
+		-3,
+		12,
+	}
+
+	-- override the item icon to include wishlist functionality and any other tweaks I want
 	ItemPassTemplates.item_icon = {
+		{
+			content_id = "hotspot",
+			pass_type = "hotspot",
+			style = {
+				on_hover_sound = UISoundEvents.default_mouse_hover,
+				on_pressed_sound = UISoundEvents.default_click,
+			},
+		},
+		{
+			pass_type = "texture",
+			style_id = "outer_shadow",
+			value = "content/ui/materials/frames/dropshadow_medium",
+			style = {
+				horizontal_alignment = "center",
+				scale_to_material = true,
+				vertical_alignment = "center",
+				color = Color.black(200, true),
+				size_addition = {
+					20,
+					20,
+				},
+			},
+		},
+		{
+			pass_type = "texture_uv",
+			style_id = "icon",
+			value = "content/ui/materials/icons/items/containers/item_container_landscape",
+			value_id = "icon",
+			style = {
+				horizontal_alignment = "center",
+				vertical_alignment = "top",
+				material_values = {},
+				offset = {
+					0,
+					0,
+					4,
+				},
+				uvs = {
+					{
+						(weapon_icon_size[1] - item_icon_size[1]) * 0.5 / weapon_icon_size[1],
+						(weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2],
+					},
+					{
+						1 - (weapon_icon_size[1] - item_icon_size[1]) * 0.5 / weapon_icon_size[1],
+						1 - (weapon_icon_size[2] - item_icon_size[2]) * 0.5 / weapon_icon_size[2],
+					},
+				},
+			},
+			visibility_function = function(content, style)
+				local use_placeholder_texture = content.use_placeholder_texture
+
+				if use_placeholder_texture and use_placeholder_texture == 0 then
+					return true
+				end
+
+				return false
+			end,
+		},
+		{
+			pass_type = "rotated_texture",
+			style_id = "loading",
+			value = "content/ui/materials/loading/loading_small",
+			style = {
+				angle = 0,
+				horizontal_alignment = "center",
+				vertical_alignment = "center",
+				size = {
+					80,
+					80,
+				},
+				color = {
+					60,
+					160,
+					160,
+					160,
+				},
+				offset = {
+					0,
+					0,
+					4,
+				},
+			},
+			visibility_function = function(content, style)
+				local use_placeholder_texture = content.use_placeholder_texture
+
+				if not use_placeholder_texture or use_placeholder_texture == 1 then
+					return true
+				end
+
+				return false
+			end,
+			change_function = function(content, style, _, dt)
+				local add = -0.5 * dt
+
+				style.rotation_progress = ((style.rotation_progress or 0) + add) % 1
+				style.angle = style.rotation_progress * math.pi * 2
+			end,
+		},
+		{
+			pass_type = "texture",
+			style_id = "background",
+			value = "content/ui/materials/backgrounds/default_square",
+			style = {
+				color = Color.terminal_background_dark(nil, true),
+				selected_color = Color.terminal_background_selected(nil, true),
+				offset = {
+					0,
+					0,
+					0,
+				},
+			},
+		},
+		{
+			pass_type = "texture",
+			style_id = "background_gradient",
+			value = "content/ui/materials/gradients/gradient_vertical",
+			style = {
+				horizontal_alignment = "center",
+				vertical_alignment = "center",
+				default_color = {
+					100,
+					33,
+					35,
+					37,
+				},
+				color = {
+					100,
+					33,
+					35,
+					37,
+				},
+				offset = {
+					0,
+					0,
+					1,
+				},
+			},
+		},
+		{
+			pass_type = "texture",
+			style_id = "button_gradient",
+			value = "content/ui/materials/gradients/gradient_diagonal_down_right",
+			style = {
+				horizontal_alignment = "center",
+				vertical_alignment = "center",
+				default_color = Color.terminal_background_gradient(nil, true),
+				selected_color = Color.terminal_frame_selected(nil, true),
+				offset = {
+					0,
+					0,
+					1,
+				},
+			},
+			change_function = function(content, style)
+				ButtonPassTemplates.terminal_button_change_function(content, style)
+				ButtonPassTemplates.terminal_button_hover_change_function(content, style)
+			end,
+		},
+		{
+			pass_type = "texture",
+			style_id = "frame",
+			value = "content/ui/materials/frames/frame_tile_2px",
+			style = {
+				horizontal_alignment = "center",
+				vertical_alignment = "center",
+				color = Color.terminal_frame(nil, true),
+				default_color = Color.terminal_frame(nil, true),
+				selected_color = Color.terminal_frame_selected(nil, true),
+				hover_color = Color.terminal_frame_hover(nil, true),
+				offset = {
+					0,
+					0,
+					6,
+				},
+			},
+			change_function = item_change_function,
+		},
+		{
+			pass_type = "texture",
+			style_id = "corner",
+			value = "content/ui/materials/frames/frame_corner_2px",
+			style = {
+				horizontal_alignment = "center",
+				vertical_alignment = "center",
+				color = Color.terminal_corner(nil, true),
+				default_color = Color.terminal_corner(nil, true),
+				selected_color = Color.terminal_corner_selected(nil, true),
+				hover_color = Color.terminal_corner_hover(nil, true),
+				offset = {
+					0,
+					0,
+					7,
+				},
+			},
+			change_function = item_change_function,
+		},
+		{
+			pass_type = "texture",
+			style_id = "equipped_icon",
+			value = "content/ui/materials/icons/items/equipped_label",
+			style = {
+				horizontal_alignment = "right",
+				vertical_alignment = "top",
+				size = {
+					32,
+					32,
+				},
+				offset = {
+					0,
+					0,
+					8,
+				},
+			},
+			visibility_function = function(content, style)
+				return content.equipped
+			end,
+		},
+		{
+			pass_type = "text",
+			style_id = "owned",
+			value = "",
+			value_id = "owned",
+			style = item_owned_text_style,
+			visibility_function = function(content, style)
+				return content.owned
+			end,
+		},
+		{
+			pass_type = "text",
+			value = "",
+			style = item_lock_symbol_text_style,
+			visibility_function = function(content, style)
+				return content.locked
+			end,
+			change_function = _symbol_text_change_function,
+		},
+		{
+			pass_type = "rect",
+			style = {
+				vertical_alignment = "bottom",
+				offset = {
+					0,
+					0,
+					3,
+				},
+				color = {
+					150,
+					0,
+					0,
+					0,
+				},
+				size = {
+					nil,
+					40,
+				},
+			},
+			visibility_function = function(content, style)
+				local is_locked = content.locked
+				local is_sold = content.has_price_tag and not content.sold
+
+				return is_locked or is_sold
+			end,
+		},
+		{
+			pass_type = "text",
+			style_id = "price_text",
+			value = "n/a",
+			value_id = "price_text",
+			style = gear_item_price_style,
+			visibility_function = function(content, style)
+				return content.has_price_tag and not content.sold
+			end,
+		},
+		{
+			pass_type = "texture",
+			style_id = "wallet_icon",
+			value = "content/ui/materials/base/ui_default_base",
+			value_id = "wallet_icon",
+			style = {
+				horizontal_alignment = "left",
+				vertical_alignment = "bottom",
+				size = {
+					28,
+					20,
+				},
+				offset = {
+					-2,
+					-5,
+					12,
+				},
+				color = {
+					255,
+					255,
+					255,
+					255,
+				},
+			},
+			visibility_function = function(content, style)
+				return content.has_price_tag and not content.sold
+			end,
+		},
+		{
+			pass_type = "texture",
+			value = "content/ui/materials/symbols/new_item_indicator",
+			style = {
+				horizontal_alignment = "right",
+				vertical_alignment = "top",
+				size = {
+					100,
+					100,
+				},
+				offset = {
+					30,
+					-30,
+					5,
+				},
+				color = Color.terminal_corner_selected(255, true),
+			},
+			visibility_function = function(content, style)
+				return content.element.new_item_marker
+			end,
+			change_function = function(content, style)
+				local speed = 5
+				local anim_progress = 1 - (0.5 + math.sin(Application.time_since_launch() * speed) * 0.5)
+				local hotspot = content.hotspot
+
+				style.color[1] = 150 + anim_progress * 80
+
+				local hotspot = content.hotspot
+
+				if hotspot.is_selected or hotspot.on_hover_exit then
+					content.element.new_item_marker = nil
+
+					local element = content.element
+					local item = element and (element.real_item or element.item)
+
+					if content.element.remove_new_marker_callback and item then
+						content.element.remove_new_marker_callback(item)
+					end
+				end
+			end,
+		},
+		{
+			pass_type = "texture",
+			style_id = "favorite_icon",
+			value = "content/ui/materials/symbols/character_level",
+			style = {
+				horizontal_alignment = "right",
+				vertical_alignment = "bottom",
+				size = {
+					40,
+					40,
+				},
+				offset = {
+					0,
+					0,
+					9,
+				},
+				color = Color.ui_veteran(255, true),
+			},
+			visibility_function = function(content, style)
+				return content.favorite
+			end,
+		},
 		{
 			pass_type = "text",
 			value = Utf8.upper(Localize("loc_VLWC_wishlist")),
@@ -626,7 +1016,6 @@ mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ..
 			change_function = _symbol_text_change_function,
 		},
 	}
-		]]
 
 	func(self, ...)
 end)
@@ -642,25 +1031,13 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "on_exit", function(self)
 end)
 
 mod.can_item_be_equipped = function(self, selected_item)
-	local found = false
+	local can_be_equipped = true
 
-	if selected_item.slot_weapon_skin and selected_item.slot_weapon_skin.__locked then
-		found = true
-	end
-	for i = 1, #lockedItems do
-		if lockedItems[i].name == selected_item.name or lockedItems[i].__gear_id == selected_item.gear_id then
-			found = true
-		end
+	if selected_item.__locked and selected_item.__locked == true then
+		can_be_equipped = false
 	end
 
-	if found then
-		local widgets_by_name = self._widgets_by_name
-		if widgets_by_name.display_name then
-			widgets_by_name.display_name.content.text = " " .. widgets_by_name.display_name.content.text
-		end
-	end
-
-	display_equip_button = not found
+	return can_be_equipped
 end
 
 local find_link_attachment_item_slot_path
@@ -1242,6 +1619,25 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 			local visual_item = is_empty and item or generate_visual_item_function(item, self._selected_item, item_type)
 			local real_item = not is_empty and item or nil
 
+			-- set rarity of item based on source...
+			if item.__master_item and item.__master_item.source then
+				local new_rarity = -1
+				if item.__master_item.source == 1 then
+					new_rarity = 3
+				elseif item.__master_item.source == 2 then
+					new_rarity = 4
+				elseif item.__master_item.source == 3 then
+					new_rarity = 5
+				elseif is_empty then
+					new_rarity = -1
+				else
+					new_rarity = 2
+				end
+
+				visual_item.rarity = new_rarity
+				real_item.__master_item.rarity = new_rarity
+			end
+
 			layout_count = layout_count + 1
 			layout[layout_count] = {
 				widget_type = "item_icon",
@@ -1268,20 +1664,25 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 	local has_locked_penance_track_item = next(locked_penance_track_items_by_name) ~= nil
 	local has_locked_store_item = next(locked_store_items_by_name) ~= nil
 
+	-- Commented out default adding of locked items, as I want to handle this myself to include commodores...
+
 	if has_locked_achievement_item or has_locked_store_item or has_locked_penance_track_item then
 		layout_count = layout_count + 1
+
 		layout[layout_count] = {
 			sort_group = 4,
 			widget_type = "divider",
 		}
 	end
 
+	--[[
+
 	for _, achievement_item in pairs(locked_achievement_items_by_name) do
 		local item = achievement_item.item
 
 		if item then
 			local visual_item = generate_visual_item_function(achievement_item.item, self._selected_item, item_type)
-
+			--
 			layout_count = layout_count + 1
 			layout[layout_count] = {
 				locked = true,
@@ -1304,7 +1705,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 
 		if item then
 			local visual_item = generate_visual_item_function(penance_track_item.item, self._selected_item, item_type)
-
+			
 			layout_count = layout_count + 1
 			layout[layout_count] = {
 				locked = true,
@@ -1344,6 +1745,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 			}
 		end
 	end
+	]]
 
 	--------------------------
 
@@ -1352,12 +1754,15 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 		local continue = true
 		local skin_name = ""
 
+		-- set rarity to that of the custom item...
+		custom_item.item.rarity = custom_item.real_item.rarity
+
 		if custom_item.real_item and custom_item.real_item.__master_item then
 			skin_name = custom_item.real_item.__master_item.display_name
 		end
 
 		if custom_item.slot_name ~= slot_name then
-			continue = false
+			--continue = false
 		end
 
 		for _, default_item in pairs(inventory_items) do
@@ -1422,8 +1827,6 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 	local character_id = player:character_id()
 	local selected_item = self._selected_item
 	local promises = Promise.resolved({})
-
-	dbg_5 = current_commodores_offers
 
 	for i = 1, #tabs_content do
 		local tab_content = tabs_content[i]
@@ -1504,6 +1907,17 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 						end
 					end
 
+					-- set rarity of item based on source...
+					if item.source == 1 then
+						item.rarity = 3
+					elseif item.source == 2 then
+						item.rarity = 4
+					elseif item.source == 3 then
+						item.rarity = 5
+					else
+						item.rarity = 2
+					end
+
 					if continue then
 						table.insert(custom_items[selected_item_slot], {
 							widget_type = "item_icon",
@@ -1528,8 +1942,6 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 				end
 			end
 		end
-
-		dbg_1 = custom_items
 
 		----------------------------------------------------------------------------------------
 
@@ -1627,8 +2039,6 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 				return Promise.resolved(penance_track_items)
 			end)
 		promises[i] = Promise.all(unpack(slot_promises)):next(function(items)
-			dbg_2 = custom_items
-
 			local newitems = {}
 			if tab_content.slot_name == "slot_weapon_skin" then
 				newitems = custom_items["slot_weapon_skin"]
@@ -1647,14 +2057,11 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 
 	return Promise.all(unpack(promises)):next(function(items_data)
 		self._items_by_slot = {}
-		dbg_3 = items_data
 		for i = 1, #items_data do
 			local tab_content = tabs_content[i]
 			local slot_name = tab_content.slot_name
 			self._items_by_slot[slot_name] = items_data[i]
 		end
-
-		dbg_6 = self._items_by_slot
 	end)
 end
 
@@ -1721,106 +2128,88 @@ end
 
 mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view", function(instance)
 	instance.cb_on_wishlist_pressed = function(self)
-		if self._previewed_item then
-			local previewed_item_name = ""
-			local previewed_item_dev_name = ""
-			local previewed_item_display_name = ""
-			local previewed_item_gearid = ""
-			local widgets_by_name = self._widgets_by_name
-			local already_on_wishlist = false
-			local temp = {}
-
-			-- weapon skins
-			if self._previewed_item.__master_item then
-				local previewed_item = self._previewed_item.slot_weapon_skin
-				previewed_item_name = previewed_item.__master_item.name
-				previewed_item_dev_name = previewed_item.__master_item.dev_name
-				previewed_item_display_name = previewed_item.__master_item.display_name
-				previewed_item_gearid = previewed_item.__gear_id
-				local parent_item_display_name = self._previewed_item.__master_item.display_name
-				temp.parent_item = Localize(parent_item_display_name)
-
-				if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
-					for i, item in pairs(wishlisted_items) do
-						if item.name == previewed_item_name then
-							-- already in wishlist, remove
-							already_on_wishlist = true
-							table.remove(wishlisted_items, i)
-							self:_play_sound(UISoundEvents.notification_default_exit)
-							widgets_by_name.wishlist_button.style.background_gradient.default_color =
-								Color.terminal_background_gradient(nil, true)
-							local text = Localize(previewed_item_display_name)
-								.. " ("
-								.. temp.parent_item
-								.. ")"
-								.. Localize("loc_VLWC_wishlist_removed")
-							Managers.event:trigger("event_add_notification_message", "default", text)
-						end
-					end
-				end
-			end
-
-			-- trinkets
-			if
-				self._previewed_item.attachments
-				and self._previewed_item.attachments.slot_trinket_1
-				and self._previewed_item.attachments.slot_trinket_1.item
-				and self._previewed_item.attachments.slot_trinket_1.item.__master_item
-			then
-				previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
-				previewed_item_dev_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.dev_name
-				previewed_item_display_name =
-					self._previewed_item.attachments.slot_trinket_1.item.__master_item.display_name
-				previewed_item_gearid = self._previewed_item.attachments.slot_trinket_1.item.__gear_id
-				temp.parent_item = "Trinket"
-
-				if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
-					for i, item in pairs(wishlisted_items) do
-						if item.name == previewed_item_name then
-							already_on_wishlist = true
-							table.remove(wishlisted_items, i)
-							self:_play_sound(UISoundEvents.notification_default_exit)
-							widgets_by_name.wishlist_button.style.background_gradient.default_color =
-								Color.terminal_background_gradient(nil, true)
-							local text = Localize(previewed_item_display_name)
-								.. " ("
-								.. temp.parent_item
-								.. ")"
-								.. Localize("loc_VLWC_wishlist_removed")
-							Managers.event:trigger("event_add_notification_message", "default", text)
-						end
-					end
-				end
-			end
-
-			if not already_on_wishlist then
-				-- add
-				temp.name = previewed_item_name
-				temp.dev_name = previewed_item_dev_name
-				temp.gearid = previewed_item_gearid
-				temp.display_name = previewed_item_display_name
-				dbg_item = self._previewed_item
-
-				if wishlisted_items == nil then
-					wishlisted_items = {}
-				end
-				if wishlisted_items ~= nil then
-					wishlisted_items[#wishlisted_items + 1] = temp
-				end
-				self:_play_sound(UISoundEvents.notification_default_enter)
-				widgets_by_name.wishlist_button.style.background_gradient.default_color =
-					Color.terminal_text_warning_light(nil, true)
-				local text = Localize(previewed_item_display_name)
-					.. " ("
-					.. temp.parent_item
-					.. ")"
-					.. Localize("loc_VLWC_wishlist_added")
-				Managers.event:trigger("event_add_notification_message", "default", text)
-			end
-
-			mod.set_wishlist()
-			mod.update_wishlist_icons(self)
+		if not self._previewed_item then
+			return
 		end
+
+		local item = self._previewed_item
+		local widgets_by_name = self._widgets_by_name
+		local temp = {}
+		local previewed_item_name, previewed_item_dev_name, previewed_item_display_name, previewed_item_gearid
+		local already_on_wishlist = false
+
+		-- Check and remove from wishlist
+		local function remove_from_wishlist()
+			for i, entry in pairs(wishlisted_items or {}) do
+				if entry.name == previewed_item_name then
+					already_on_wishlist = true
+					table.remove(wishlisted_items, i)
+					self:_play_sound(UISoundEvents.notification_default_exit)
+					widgets_by_name.wishlist_button.style.background_gradient.default_color =
+						Color.terminal_background_gradient(nil, true)
+
+					local text = Localize(previewed_item_display_name)
+						.. " ("
+						.. temp.parent_item
+						.. ")"
+						.. Localize("loc_VLWC_wishlist_removed")
+					Managers.event:trigger("event_add_notification_message", "default", text)
+					break
+				end
+			end
+		end
+
+		-- Handle weapon skins
+		if item.__master_item then
+			local master = item.__master_item
+			previewed_item_name = master.name
+			previewed_item_dev_name = master.dev_name
+			previewed_item_display_name = master.display_name
+			previewed_item_gearid = item.__gear_id
+			temp.parent_item = Localize(master.display_name)
+
+			remove_from_wishlist()
+		end
+
+		-- Handle trinkets
+		local trinket_item = item.attachments
+			and item.attachments.slot_trinket_1
+			and item.attachments.slot_trinket_1.item
+		if trinket_item and trinket_item.__master_item then
+			local master = trinket_item.__master_item
+			previewed_item_name = master.name
+			previewed_item_dev_name = master.dev_name
+			previewed_item_display_name = master.display_name
+			previewed_item_gearid = trinket_item.__gear_id
+			temp.parent_item = "Trinket"
+
+			remove_from_wishlist()
+		end
+
+		-- Add to wishlist if not already added
+		if not already_on_wishlist then
+			temp.name = previewed_item_name
+			temp.dev_name = previewed_item_dev_name
+			temp.gearid = previewed_item_gearid
+			temp.display_name = previewed_item_display_name
+
+			wishlisted_items = wishlisted_items or {}
+			wishlisted_items[#wishlisted_items + 1] = temp
+
+			self:_play_sound(UISoundEvents.notification_default_enter)
+			widgets_by_name.wishlist_button.style.background_gradient.default_color =
+				Color.terminal_text_warning_light(nil, true)
+
+			local text = Localize(previewed_item_display_name)
+				.. " ("
+				.. temp.parent_item
+				.. ")"
+				.. Localize("loc_VLWC_wishlist_added")
+			Managers.event:trigger("event_add_notification_message", "default", text)
+		end
+
+		mod.set_wishlist()
+		mod.update_wishlist_icons(self)
 	end
 
 	instance.cb_on_inspect_pressed = function(self)
@@ -1948,7 +2337,6 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 	end
 
 	mod.grab_current_commodores_items = function(self, archetype)
-		mod:echo("GRABBING STORE ITEMS 2...")
 		local player = Managers.player:local_player(1)
 		local character_id = player:character_id()
 		local archetype_name = player:archetype_name()
