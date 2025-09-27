@@ -481,26 +481,14 @@ mod:hook(CLASS.InventoryView, "on_enter", function(func, self, ...)
 	mod.grab_current_commodores_items(self)
 end)
 
-mod:hook(CLASS.InventoryView, "on_exit", function(func, self, ...)
-	func(self, ...)
-
-	local input_manager = Managers.input
-	if input_manager and input_manager.release_cursor then
-		input_manager:release_cursor()
-		input_manager:cursor_passed_gamepad(false)
-	end
-
-	if InputDevice and InputDevice.set_cursor_visible then
-		InputDevice.set_cursor_visible(false)
-	end
-end)
+local UIHud = require("scripts/managers/ui/ui_hud")
 
 -- Add locked gear icons like on the character cosmetics view.
 local default_gear_item
-mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ...)
-	CLASS.InventoryWeaponCosmeticsView.super.on_enter(self)
 
-	mod.grab_current_commodores_items(self)
+mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ...)
+	func(self, ...)
+
 	mod.get_wishlist()
 
 	default_gear_item = ItemPassTemplates.gear_item
@@ -1029,20 +1017,28 @@ mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ..
 			change_function = _symbol_text_change_function,
 		},
 	}
-
-	func(self, ...)
+	
 end)
 
-mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_exit", function(func, self, ...)
-	func(self, ...)
-
+InventoryWeaponCosmeticsView.on_exit = function(self)
 	mod.set_wishlist()
 	ItemPassTemplates.gear_item = default_gear_item
 	Selected_purchase_offer = {}
 	if CCVI then
 		CCVI.Selected_purchase_offer = {}
 	end
-end)
+
+	if self._on_enter_anim_id then
+		self:_stop_animation(self._on_enter_anim_id)
+
+		self._on_enter_anim_id = nil
+	end
+
+	self:_destroy_forward_gui()
+	self:_destroy_side_panel()
+
+	InventoryWeaponCosmeticsView.super.on_exit(self)
+end
 
 mod.can_item_be_equipped = function(self, selected_item)
 	local can_be_equipped = true
