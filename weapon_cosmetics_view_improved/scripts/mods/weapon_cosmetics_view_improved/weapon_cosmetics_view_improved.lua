@@ -1666,14 +1666,12 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 
 	-- Commented out default adding of locked items, as I want to handle this myself to include commodores...
 
-	if has_locked_achievement_item or has_locked_store_item or has_locked_penance_track_item then
-		layout_count = layout_count + 1
+	layout_count = layout_count + 1
 
-		layout[layout_count] = {
-			sort_group = 4,
-			widget_type = "divider",
-		}
-	end
+	layout[layout_count] = {
+		sort_group = 4,
+		widget_type = "divider",
+	}
 
 	--[[
 
