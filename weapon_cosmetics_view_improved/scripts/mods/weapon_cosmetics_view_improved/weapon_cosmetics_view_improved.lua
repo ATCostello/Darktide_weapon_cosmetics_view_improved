@@ -1445,6 +1445,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 	local custom_items = items.custom
 	--------------------------------------------
 
+	dbg_1 = inventory_items
 	for i = 1, #inventory_items do
 		local inventory_item = inventory_items[i]
 		local is_empty = inventory_item.empty_item
@@ -1478,18 +1479,21 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 			local real_item = not is_empty and item or nil
 
 			-- set rarity of item based on source...
+			-- 1 = grey, 2 = green, 3 = blue, 4 = purple, 5 = yellow
 			if item.__master_item and item.__master_item.source then
 				local new_rarity = -1
 				if item.__master_item.source == 1 then
-					new_rarity = 3
+					new_rarity = 2
 				elseif item.__master_item.source == 2 then
-					new_rarity = 4
+					new_rarity = 2
 				elseif item.__master_item.source == 3 then
 					new_rarity = 5
+				elseif item.__master_item.source == 4 then
+					new_rarity = 3
 				elseif is_empty then
 					new_rarity = -1
 				else
-					new_rarity = 2
+					new_rarity = 4
 				end
 
 				visual_item.rarity = new_rarity
