@@ -109,7 +109,7 @@ mod.on_all_mods_loaded = function()
 
 	CCVI = get_mod("character_cosmetics_view_improved")
 
-	-- Override weapon_customization function to prevent crash when immediately backing out of store view.
+	-- Override weapon_customization function to prevent crash when immediately backing out of store view. (For old version of EWC, keeping in just incase someone is still using it.)
 	weapon_customization = get_mod("weapon_customization")
 
 	local vector3 = Vector3
@@ -153,6 +153,7 @@ mod.on_all_mods_loaded = function()
 		end
 	end
 
+	-- same functionality included in ccvi
 	if not CCVI then
 		mod.wishlist_store_check = function(self, archetype)
 			if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
@@ -216,6 +217,7 @@ mod.on_all_mods_loaded = function()
 			end
 		end
 
+		-- display wishlist notifications when going to character select screen...
 		mod:hook_safe(CLASS.StateMainMenu, "event_request_select_new_profile", function(self, profile)
 			mod.display_wishlist_notification(self)
 		end)
@@ -243,6 +245,7 @@ mod.update_wishlist_icons = function(self)
 	local item_grid = self._item_grid
 	local widgets = item_grid:widgets()
 
+	-- Checking for matching wishlist entries to determine if item is on wishlist and icon should be shown.
 	for _, widget in pairs(widgets) do
 		local item_on_wishlist = false
 
@@ -298,12 +301,12 @@ end
 
 -- When selecting any weapon cosmetic, remove equip button on locked items, set purchase offer and grab all other locked weapon cosmetics if not done already.
 mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(self, element)
-	-- Extended Weapon Customization Compatability
+	-- Test version Extended Weapon Customization Compatability
 	if self._context and self._context.customize_attachments then
 		return
 	end
 
-	local parent_item = self._presentation_item -- Just the weapon here
+	local parent_item = self._presentation_item
 	local selected_item = self._previewed_item
 
 	if self._selected_tab_index == 1 then
@@ -315,7 +318,7 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		parent_item = self._previewed_item
 	end
 
-	-- hide equip button on locked items
+	-- Update equip, store and wishlist buttons for selected weapon/trinket...
 	if element and (self._selected_tab_index == 1 or self._selected_tab_index == 2) then
 		local widgets_by_name = self._widgets_by_name
 
@@ -478,21 +481,20 @@ end)
 mod:hook(CLASS.InventoryView, "on_enter", function(func, self, ...)
 	func(self, ...)
 
+	-- cache available commodores shop items when entering the inventory...
 	mod.grab_current_commodores_items(self)
 end)
 
-local UIHud = require("scripts/managers/ui/ui_hud")
-
--- Add locked gear icons like on the character cosmetics view.
-local default_gear_item
+mod:hook_require("scripts/ui/pass_templates/item_pass_templates", function(instance)
+	instance.item_icon = {}
+end)
 
 mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ...)
 	func(self, ...)
 
 	mod.get_wishlist()
 
-	default_gear_item = ItemPassTemplates.gear_item
-
+	-- Updating the default widgets for the grid entries to add custom icons for wishlists, store prices etc...
 	local weapon_item_size = UISettings.weapon_item_size
 	local weapon_icon_size = UISettings.weapon_icon_size
 	local icon_size = UISettings.icon_size
@@ -1017,12 +1019,12 @@ mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ..
 			change_function = _symbol_text_change_function,
 		},
 	}
-	
 end)
 
+-- Was having issues with the hook on this, so ended up running as a full override... Hopefully it wont break things in the future. If it does, I'm sorry. ;)
 InventoryWeaponCosmeticsView.on_exit = function(self)
 	mod.set_wishlist()
-	ItemPassTemplates.gear_item = default_gear_item
+
 	Selected_purchase_offer = {}
 	if CCVI then
 		CCVI.Selected_purchase_offer = {}
@@ -1040,6 +1042,7 @@ InventoryWeaponCosmeticsView.on_exit = function(self)
 	InventoryWeaponCosmeticsView.super.on_exit(self)
 end
 
+-- Quick check to see if item is locked... not a full can it be equipped, as that is handled beforehand to set the locked status in the weapon_cosmetics_view code.
 mod.can_item_be_equipped = function(self, selected_item)
 	local can_be_equipped = true
 
@@ -1048,162 +1051,6 @@ mod.can_item_be_equipped = function(self, selected_item)
 	end
 
 	return can_be_equipped
-end
-
-local find_link_attachment_item_slot_path
-
-function find_link_attachment_item_slot_path(start_table, slot_id, trinket_item, link_item)
-	local find_all_slot_paths
-
-	function find_all_slot_paths(
-		path_target_table,
-		path_slot_id,
-		path_item,
-		path_link_item,
-		found_path,
-		found_item_name
-	)
-		if not path_target_table then
-			return
-		end
-
-		local unused_trinket_name = "content/items/weapons/player/trinkets/unused_trinket"
-
-		for k, t in pairs(path_target_table) do
-			if type(t) == "table" then
-				if k == path_slot_id then
-					if not t.item or t.item ~= unused_trinket_name then
-						found_path = true
-
-						if path_link_item then
-							t.item = path_item
-						end
-
-						found_item_name = found_item_name ~= nil and found_item_name or t.item
-					end
-				elseif not ItemSlotSettings[k] then
-					found_path, found_item_name =
-						find_all_slot_paths(t, path_slot_id, path_item, path_link_item, found_path, found_item_name)
-				end
-			end
-		end
-
-		return found_path, found_item_name
-	end
-
-	return find_all_slot_paths(start_table, slot_id, trinket_item, link_item)
-end
-
-local function generate_preview_item(item, item_type)
-	return MasterItems.get_ui_item_instance(item)
-end
-
-local trinket_slot_order = {
-	"slot_trinket_1",
-	"slot_trinket_2",
-}
-
-mod.generate_visual_item_function_skin = function(self, real_item, selected_item, item_type)
-	local visual_item = generate_preview_item(selected_item, item_type)
-
-	visual_item.rarity = real_item.rarity or -1
-	visual_item.gear_id = real_item.gear_id
-	visual_item.slot_weapon_skin = real_item
-
-	if visual_item.__master_item then
-		visual_item.__master_item.slot_weapon_skin = real_item
-	end
-
-	if
-		visual_item.__gear
-		and visual_item.__gear.masterDataInstance
-		and visual_item.__gear.masterDataInstance.overrides
-	then
-		visual_item.__gear.masterDataInstance.overrides.slot_weapon_skin = real_item and real_item.name
-	end
-
-	local found_path = false
-
-	for i = 1, #trinket_slot_order do
-		local equipped_trinket_name = self._equipped_weapon_trinket_name
-		local slot_id = trinket_slot_order[i]
-		local link_item_to_slot = true
-		local item_name = not found_path and self._equipped_weapon_trinket_name
-		local path = find_link_attachment_item_slot_path(visual_item, slot_id, item_name, link_item_to_slot)
-
-		if path then
-			found_path = true
-		end
-	end
-
-	visual_item.item_type = "WEAPON_SKIN"
-
-	return visual_item
-end
-
-mod.generate_visual_item_function_trinket = function(real_item, selected_item, item_type)
-	local visual_item = generate_preview_item(real_item, item_type)
-
-	visual_item = Items.weapon_trinket_preview_item(visual_item)
-	visual_item.rarity = real_item.rarity or -1
-	visual_item.item_type = "WEAPON_TRINKET"
-
-	return visual_item
-end
-
-mod.get_empty_item_function_trinket = function(selected_item)
-	local visual_item
-	local trinket_slot_order = {
-		"slot_trinket_1",
-		"slot_trinket_2",
-	}
-
-	if selected_item.gear then
-		visual_item = MasterItems.create_preview_item_instance(selected_item)
-	else
-		visual_item = table.clone_instance(selected_item)
-	end
-
-	visual_item.empty_item = true
-
-	for i = 1, #trinket_slot_order do
-		local slot_id = trinket_slot_order[i]
-		local link_item_to_slot = true
-
-		if visual_item.__gear.masterDataInstance.overrides then
-			find_link_attachment_item_slot_path(
-				visual_item.__gear.masterDataInstance.overrides,
-				slot_id,
-				nil,
-				link_item_to_slot
-			)
-		end
-
-		if find_link_attachment_item_slot_path(visual_item.__master_item, slot_id, nil, link_item_to_slot) then
-			break
-		end
-	end
-
-	return visual_item
-end
-
-mod.get_empty_item_function_skin = function(selected_item)
-	local visual_item
-
-	if selected_item.gear then
-		visual_item = MasterItems.create_preview_item_instance(selected_item)
-	else
-		visual_item = table.clone_instance(selected_item)
-	end
-
-	visual_item.empty_item = true
-	visual_item.slot_weapon_skin = nil
-
-	if visual_item.gear and visual_item.gear.masterDataInstance.overrides then
-		visual_item.gear.masterDataInstance.overrides.slot_weapon_skin = nil
-	end
-
-	return visual_item
 end
 
 local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
@@ -1306,6 +1153,7 @@ local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
 	return item_instance
 end
 
+-- Add definitions for the new store and wishlist buttons to the weapon cosmetics screen.
 local add_definitions = function(definitions)
 	if not definitions then
 		return
@@ -1444,7 +1292,9 @@ local STORE_LAYOUT = {
 		require_archetype_ownership = Archetypes.adamant,
 	},
 }
+
 local opened_store = false
+
 StoreView._on_page_index_selected = function(self, page_index)
 	self._selected_page_index = page_index
 
@@ -1555,8 +1405,6 @@ StoreView._initialize_opening_page = function(self)
 
 	self:_open_navigation_path(path)
 end
-
-local get_weapon_items = function(self) end
 
 local function items_by_name(entry_array, is_item)
 	local _items_by_name = {}
@@ -1828,7 +1676,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 	return layout
 end
 
--- NEW OVERRIDE TO INCLUDE COMMODORES...
+-- Override fetch inventory items to include commodore's items...
 InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_content)
 	local local_player_id = 1
 	local player = Managers.player:local_player(local_player_id)
@@ -2073,6 +1921,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 	end)
 end
 
+-- Grabs all weapon cosmetic trinkets, skins etc.
 mod.get_weapon_cosmetic_items = function(self)
 	MasterItems.refresh()
 
@@ -2111,7 +1960,7 @@ mod.get_weapon_cosmetic_items = function(self)
 						break
 					end
 
-					-- Filter out unlocked items
+					-- Filter unlocked items
 					local locked = true
 					for i = 1, #self._inventory_items do
 						if item.name == self._inventory_items[i].__master_item.name then
@@ -2134,6 +1983,7 @@ mod.get_weapon_cosmetic_items = function(self)
 	return weapon_cosmetic_items
 end
 
+-- add my custom functions to the weapons view...
 mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_weapon_cosmetics_view", function(instance)
 	instance.cb_on_wishlist_pressed = function(self)
 		if not self._previewed_item then
@@ -2453,6 +2303,7 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 	end
 end)
 
+-- Grab commodore's offer for selected items... (Used to jump straight to the offer and grab details...)
 mod.get_item_in_current_commodores = function(self, gearid, item_name)
 	if not current_commodores_offers then
 		return
