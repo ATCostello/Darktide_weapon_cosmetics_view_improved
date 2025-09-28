@@ -31,6 +31,11 @@ mod:add_global_localize_strings({
 		en = " has been removed from your wishlist.",
 		["zh-cn"] = "已被从愿望单中移除",
 	},
+	show_unobtainable = {
+		en = "Show Unobtainable Cosmetics",
+		ru = "Показывать недоступные косметические предметы",
+		["zh-cn"] = "显示无法获取的装饰品",
+	},
 })
 
 return {
@@ -40,11 +45,8 @@ return {
 		["zh-cn"] = "武器装饰品视图改进",
 	},
 	mod_description = {
-		en =
-		"Lets you view locked weapon cosmetics such as skins and trinkets (including premium items), just like the character cosmetic screen.",
-		ru =
-		"Weapon Cosmetics View Improved - Позволяет просматривать заблокированные косметические элементы оружия, такие как скины и безделушки (включая премиум-предметы), точно так же, как и на экране осмотра косметических вещей персонажа.",
-		["zh-cn"] = 
-		"使你可以像角色装饰品页面一样预览全部的皮肤和饰品。",
+		en = "Lets you view locked weapon cosmetics such as skins and trinkets (including premium items), just like the character cosmetic screen.",
+		ru = "Weapon Cosmetics View Improved - Позволяет просматривать заблокированные косметические элементы оружия, такие как скины и безделушки (включая премиум-предметы), точно так же, как и на экране осмотра косметических вещей персонажа.",
+		["zh-cn"] = "使你可以像角色装饰品页面一样预览全部的皮肤和饰品。",
 	},
 }

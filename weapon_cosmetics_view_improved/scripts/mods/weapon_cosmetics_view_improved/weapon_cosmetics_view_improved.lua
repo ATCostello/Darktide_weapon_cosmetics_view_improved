@@ -1753,8 +1753,10 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 					end
 
 					-- Filter out unknown sources
-					if item.source == nil or item.source < 1 then
-						continue = false
+					if mod:get("show_unobtainable") == false then
+						if item.source == nil or item.source < 1 then
+							continue = false
+						end
 					end
 
 					-- find if item is on wishlist
