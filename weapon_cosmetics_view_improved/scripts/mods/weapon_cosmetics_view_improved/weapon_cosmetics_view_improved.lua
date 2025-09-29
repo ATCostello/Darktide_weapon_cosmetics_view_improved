@@ -386,24 +386,9 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 
 		if
 			self._previewed_item
-			and self._previewed_item.slot_weapon_skin
-			and self._previewed_item.slot_weapon_skin
-			and self._previewed_item.slot_weapon_skin.__locked
-			and self._previewed_item.slot_weapon_skin.__master_item
-			and self._previewed_item.slot_weapon_skin.__locked == true
-			and self._previewed_item.slot_weapon_skin.__master_item.source == 3
-		then
-			widgets_by_name.wishlist_button.content.visible = true
-		elseif
-			self._previewed_item
-			and self._previewed_item.attachments
-			and self._previewed_item.attachments.slot_trinket_1
-			and self._previewed_item.attachments.slot_trinket_1.item
-			and self._previewed_item.attachments.slot_trinket_1.item.__locked
-			and self._previewed_item.attachments.slot_trinket_1.item.__locked == true
-			and self._previewed_item.attachments.slot_trinket_1.item.__master_item
-			and self._previewed_item.attachments.slot_trinket_1.item.__master_item.source
-			and self._previewed_item.attachments.slot_trinket_1.item.__master_item.source == 3
+			and self._previewed_item.__locked
+			and self._previewed_item.__locked == true
+			and self._previewed_item.__master_item.source == 3
 		then
 			widgets_by_name.wishlist_button.content.visible = true
 		else
@@ -444,6 +429,7 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		end
 
 		Selected_purchase_offer = element.purchase_offer
+
 		if Selected_purchase_offer then
 			widgets_by_name.wishlist_button.content.visible = true
 		end
@@ -460,16 +446,32 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 				0,
 			}
 		else
-			widgets_by_name.wishlist_button.offset = {
-				50,
-				-22,
-				2,
-			}
 			widgets_by_name.weapon_store_button.offset = {
 				-5,
 				-70,
 				0,
 			}
+
+			widgets_by_name.wishlist_button.offset = {
+				50,
+				-22,
+				2,
+			}
+
+			-- If store button isnt visible, need to move wishlist button to account for the infopanel position
+			if show_store_button == false then
+				widgets_by_name.wishlist_button.offset = {
+					25,
+					30,
+					2,
+				}
+			else
+				widgets_by_name.wishlist_button.offset = {
+					50,
+					-22,
+					2,
+				}
+			end
 		end
 
 		if CCVI then
@@ -1445,7 +1447,6 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 	local custom_items = items.custom
 	--------------------------------------------
 
-	dbg_1 = inventory_items
 	for i = 1, #inventory_items do
 		local inventory_item = inventory_items[i]
 		local is_empty = inventory_item.empty_item
@@ -1479,21 +1480,18 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 			local real_item = not is_empty and item or nil
 
 			-- set rarity of item based on source...
-			-- 1 = grey, 2 = green, 3 = blue, 4 = purple, 5 = yellow
 			if item.__master_item and item.__master_item.source then
 				local new_rarity = -1
 				if item.__master_item.source == 1 then
-					new_rarity = 2
+					new_rarity = 3
 				elseif item.__master_item.source == 2 then
-					new_rarity = 2
+					new_rarity = 4
 				elseif item.__master_item.source == 3 then
 					new_rarity = 5
-				elseif item.__master_item.source == 4 then
-					new_rarity = 3
 				elseif is_empty then
 					new_rarity = -1
 				else
-					new_rarity = 4
+					new_rarity = 2
 				end
 
 				visual_item.rarity = new_rarity
@@ -1753,10 +1751,8 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_conten
 					end
 
 					-- Filter out unknown sources
-					if mod:get("show_unobtainable") == false then
-						if item.source == nil or item.source < 1 then
-							continue = false
-						end
+					if item.source == nil or item.source < 1 then
+						continue = false
 					end
 
 					-- find if item is on wishlist
