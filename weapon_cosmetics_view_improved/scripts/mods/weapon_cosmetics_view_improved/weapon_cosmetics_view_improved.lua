@@ -1086,15 +1086,19 @@ local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
 			local master_ver = rawget(item_instance, "__master_ver")
 
 			if master_ver ~= MasterItems.get_cached_version() then
-				local success = MasterItems.update_master_data(item_instance)
+				if MasterItems and MasterItems.update_master_data then
+					local success = MasterItems.update_master_data(item_instance)
 
-				if not success then
-					Log.error(
-						"MasterItems",
-						"[_item_plus_overrides][1] could not update master data with %s",
-						gear.masterDataInstance.id
-					)
+					if not success then
+						Log.error(
+							"MasterItems",
+							"[_item_plus_overrides][1] could not update master data with %s",
+							gear.masterDataInstance.id
+						)
 
+						return nil
+					end
+				else
 					return nil
 				end
 			end
@@ -1140,18 +1144,21 @@ local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
 		end,
 	})
 
-	local success = MasterItems.update_master_data(item_instance)
+	if MasterItems and MasterItems.update_master_data then
+		local success = MasterItems.update_master_data(item_instance)
 
-	if not success then
-		Log.error(
-			"MasterItems",
-			"[_item_plus_overrides][2] could not update master data with %s",
-			gear.masterDataInstance.id
-		)
+		if not success then
+			Log.error(
+				"MasterItems",
+				"[_item_plus_overrides][2] could not update master data with %s",
+				gear.masterDataInstance.id
+			)
 
+			return nil
+		end
+	else
 		return nil
 	end
-
 	return item_instance
 end
 
