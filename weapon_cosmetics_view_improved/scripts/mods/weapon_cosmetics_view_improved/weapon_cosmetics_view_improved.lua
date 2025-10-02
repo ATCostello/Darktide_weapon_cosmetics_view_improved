@@ -1040,6 +1040,7 @@ InventoryWeaponCosmeticsView.on_exit = function(self)
 
 	self:_destroy_forward_gui()
 	self:_destroy_side_panel()
+	self:_equip_items_on_server()
 
 	InventoryWeaponCosmeticsView.super.on_exit(self)
 end
@@ -1432,115 +1433,125 @@ local function items_by_name(entry_array, is_item)
 end
 
 -- Add  my custom items to layout...
-InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_context)
-	local slot_name = tab_context.slot_name
-	local item_type = tab_context.item_type
-	local generate_visual_item_function = tab_context.generate_visual_item_function
-	local get_empty_item_function = tab_context.get_empty_item
-	local layout_count, layout = 0, {}
-	local inventory_items = items.items
-	local penance_track_items = items.penance_track_items
-	local store_items = items.store_items
-	local selected_slot = ItemSlotSettings[slot_name]
-	local achievement_items = self:_achievement_items(slot_name)
-	local player = self._preview_player
-	local profile = player:profile()
-	local remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
-	local locked_achievement_items_by_name = items_by_name(achievement_items, false)
-	local locked_store_items_by_name = items_by_name(store_items, false)
-	local locked_penance_track_items_by_name = items_by_name(penance_track_items, false)
+InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
+	local tabs_content = self._tabs_content
+	local items_by_slot = self._items_by_slot
+	local layout_by_slot = {}
 
-	---------------------------------------------
-	local custom_items = items.custom
-	--------------------------------------------
+	for i = 1, #tabs_content do
+		local tab_content = tabs_content[i]
+		local slot_name = tab_content.slot_name
+		local item_type = tab_content.item_type
+		local items = items_by_slot[slot_name]
+		local generate_visual_item_function = tab_content.generate_visual_item_function
+		local get_empty_item_function = tab_content.get_empty_item
+		local layout_count, layout = 0, {}
+		local inventory_items = items and items.items
+		local penance_track_items = items and items.penance_track_items
+		local store_items = items and items.store_items
+		local selected_slot = ItemSlotSettings[slot_name]
+		local achievement_items = self:_achievement_items(slot_name)
+		local player = self._preview_player
+		local profile = player:profile()
+		local remove_new_marker_callback = self._parent and callback(self._parent, "remove_new_item_mark")
+		local locked_achievement_items_by_name = items_by_name(achievement_items, false)
+		local locked_store_items_by_name = items_by_name(store_items, false)
+		local locked_penance_track_items_by_name = items_by_name(penance_track_items, false)
 
-	for i = 1, #inventory_items do
-		local inventory_item = inventory_items[i]
-		local is_empty = inventory_item.empty_item
-		local item
+		---------------------------------------------
+		local custom_items = items.custom
+		--------------------------------------------
 
-		if is_empty then
-			item = get_empty_item_function(self._selected_item, slot_name, item_type)
-		else
-			item = inventory_item.item
-		end
+		if inventory_items then
+			for i = 1, #inventory_items do
+				local inventory_item = inventory_items[i]
+				local is_empty = inventory_item.empty_item
+				local item
 
-		if item then
-			local item_name = item.name
-			local found_achievement = locked_achievement_items_by_name[item_name]
-
-			locked_achievement_items_by_name[item_name] = nil
-
-			local found_store = locked_store_items_by_name[item_name]
-
-			locked_store_items_by_name[item_name] = nil
-
-			local found_penance_track = locked_penance_track_items_by_name[item_name]
-
-			locked_penance_track_items_by_name[item_name] = nil
-
-			local gear_id = item.gear_id
-			local is_new = self._context
-				and self._context.new_items_gear_ids
-				and self._context.new_items_gear_ids[gear_id]
-			local visual_item = is_empty and item or generate_visual_item_function(item, self._selected_item, item_type)
-			local real_item = not is_empty and item or nil
-
-			-- set rarity of item based on source...
-			if item.__master_item and item.__master_item.source then
-				local new_rarity = -1
-				if item.__master_item.source == 1 then
-					new_rarity = 3
-				elseif item.__master_item.source == 2 then
-					new_rarity = 4
-				elseif item.__master_item.source == 3 then
-					new_rarity = 5
-				elseif is_empty then
-					new_rarity = -1
+				if is_empty then
+					item = get_empty_item_function(self._selected_item, slot_name, item_type)
 				else
-					new_rarity = 2
+					item = inventory_item.item
 				end
 
-				visual_item.rarity = new_rarity
-				real_item.__master_item.rarity = new_rarity
+				if item then
+					local item_name = item.name
+					local found_achievement = locked_achievement_items_by_name[item_name]
+
+					locked_achievement_items_by_name[item_name] = nil
+
+					local found_store = locked_store_items_by_name[item_name]
+
+					locked_store_items_by_name[item_name] = nil
+
+					local found_penance_track = locked_penance_track_items_by_name[item_name]
+
+					locked_penance_track_items_by_name[item_name] = nil
+
+					local gear_id = item.gear_id
+					local is_new = self._context
+						and self._context.new_items_gear_ids
+						and self._context.new_items_gear_ids[gear_id]
+					local visual_item = is_empty and item
+						or generate_visual_item_function(item, self._selected_item, item_type)
+					local real_item = not is_empty and item or nil
+
+					-- set rarity of item based on source...
+					if item.__master_item and item.__master_item.source then
+						local new_rarity = -1
+						if item.__master_item.source == 1 then
+							new_rarity = 3
+						elseif item.__master_item.source == 2 then
+							new_rarity = 4
+						elseif item.__master_item.source == 3 then
+							new_rarity = 5
+						elseif is_empty then
+							new_rarity = -1
+						else
+							new_rarity = 2
+						end
+
+						visual_item.rarity = new_rarity
+						real_item.__master_item.rarity = new_rarity
+					end
+
+					layout_count = layout_count + 1
+					layout[layout_count] = {
+						widget_type = "item_icon",
+						is_empty = is_empty,
+						item = visual_item,
+						real_item = real_item,
+						slot = selected_slot,
+						achievement = found_achievement,
+						penance_track = found_penance_track,
+						store = found_store,
+						new_item_marker = is_new,
+						remove_new_marker_callback = remove_new_marker_callback,
+						profile = profile,
+						sort_group = is_empty and 0 or 1,
+						render_size = {
+							256,
+							128,
+						},
+					}
+				end
 			end
-
-			layout_count = layout_count + 1
-			layout[layout_count] = {
-				widget_type = "item_icon",
-				is_empty = is_empty,
-				item = visual_item,
-				real_item = real_item,
-				slot = selected_slot,
-				achievement = found_achievement,
-				penance_track = found_penance_track,
-				store = found_store,
-				new_item_marker = is_new,
-				remove_new_marker_callback = remove_new_marker_callback,
-				profile = profile,
-				sort_group = is_empty and 0 or 1,
-				render_size = {
-					256,
-					128,
-				},
-			}
 		end
-	end
 
-	local has_locked_achievement_item = next(locked_achievement_items_by_name) ~= nil
-	local has_locked_penance_track_item = next(locked_penance_track_items_by_name) ~= nil
-	local has_locked_store_item = next(locked_store_items_by_name) ~= nil
+		local has_locked_achievement_item = next(locked_achievement_items_by_name) ~= nil
+		local has_locked_penance_track_item = next(locked_penance_track_items_by_name) ~= nil
+		local has_locked_store_item = next(locked_store_items_by_name) ~= nil
 
-	-- Commented out default adding of locked items, as I want to handle this myself to include commodores...
+		-- Commented out default adding of locked items, as I want to handle this myself to include commodores...
 
-	layout_count = layout_count + 1
+		layout_count = layout_count + 1
 
-	layout[layout_count] = {
-		sort_group = 4,
-		widget_type = "divider",
-	}
+		layout[layout_count] = {
+			sort_group = 4,
+			widget_type = "divider",
+		}
 
-	--[[
+		--[[
 
 	for _, achievement_item in pairs(locked_achievement_items_by_name) do
 		local item = achievement_item.item
@@ -1612,86 +1623,90 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self, items, tab_co
 	end
 	]]
 
-	--------------------------
+		--------------------------
 
-	-- Check that the custom item is not already included in the layout and add to the layout...
-	for _, custom_item in pairs(custom_items) do
-		local continue = true
-		local skin_name = ""
+		-- Check that the custom item is not already included in the layout and add to the layout...
+		for _, custom_item in pairs(custom_items) do
+			local continue = true
+			local skin_name = ""
 
-		-- set rarity to that of the custom item...
-		custom_item.item.rarity = custom_item.real_item.rarity
+			-- set rarity to that of the custom item...
+			custom_item.item.rarity = custom_item.real_item.rarity
 
-		if custom_item.real_item and custom_item.real_item.__master_item then
-			skin_name = custom_item.real_item.__master_item.display_name
-		end
-
-		if custom_item.slot_name ~= slot_name then
-			--continue = false
-		end
-
-		for _, default_item in pairs(inventory_items) do
-			if
-				default_item.item
-				and default_item.item.__master_item
-				and default_item.item.__master_item.display_name == skin_name
-			then
-				continue = false
+			if custom_item.real_item and custom_item.real_item.__master_item then
+				skin_name = custom_item.real_item.__master_item.display_name
 			end
 
-			if default_item.item and default_item.item and default_item.item.display_name == skin_name then
-				continue = false
+			if custom_item.slot_name ~= slot_name then
+				--continue = false
+			end
+
+			for _, default_item in pairs(inventory_items) do
+				if
+					default_item.item
+					and default_item.item.__master_item
+					and default_item.item.__master_item.display_name == skin_name
+				then
+					continue = false
+				end
+
+				if default_item.item and default_item.item and default_item.item.display_name == skin_name then
+					continue = false
+				end
+			end
+
+			for _, default_item in pairs(penance_track_items) do
+				if
+					default_item.item
+					and default_item.item.__master_item
+					and default_item.item.__master_item.display_name == skin_name
+				then
+					continue = false
+				end
+
+				if default_item.item and default_item.item and default_item.item.display_name == skin_name then
+					continue = false
+				end
+			end
+
+			for _, default_item in pairs(store_items) do
+				if
+					default_item.item
+					and default_item.item.__master_item
+					and default_item.item.__master_item.display_name == skin_name
+				then
+					continue = false
+				end
+
+				if default_item.item and default_item.item and default_item.item.display_name == skin_name then
+					continue = false
+				end
+			end
+
+			if continue == true then
+				local visual_item = generate_visual_item_function(custom_item.item, self._selected_item, item_type)
+
+				layout_count = layout_count + 1
+				layout[layout_count] = custom_item
 			end
 		end
 
-		for _, default_item in pairs(penance_track_items) do
-			if
-				default_item.item
-				and default_item.item.__master_item
-				and default_item.item.__master_item.display_name == skin_name
-			then
-				continue = false
-			end
+		layout_by_slot[slot_name] = layout
 
-			if default_item.item and default_item.item and default_item.item.display_name == skin_name then
-				continue = false
-			end
-		end
-
-		for _, default_item in pairs(store_items) do
-			if
-				default_item.item
-				and default_item.item.__master_item
-				and default_item.item.__master_item.display_name == skin_name
-			then
-				continue = false
-			end
-
-			if default_item.item and default_item.item and default_item.item.display_name == skin_name then
-				continue = false
-			end
-		end
-
-		if continue == true then
-			local visual_item = generate_visual_item_function(custom_item.item, self._selected_item, item_type)
-
-			layout_count = layout_count + 1
-			layout[layout_count] = custom_item
-		end
+		-------------------------
 	end
 
-	-------------------------
-
-	return layout
+	self._weapon_cosmetic_layouts_by_slot = layout_by_slot
 end
 
 -- Override fetch inventory items to include commodore's items...
-InventoryWeaponCosmeticsView._fetch_inventory_items = function(self, tabs_content)
+InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 	local local_player_id = 1
 	local player = Managers.player:local_player(local_player_id)
 	local character_id = player:character_id()
 	local selected_item = self._selected_item
 	local promises = Promise.resolved({})
+	local tabs_content = self._tabs_content
 
 	for i = 1, #tabs_content do
 		local tab_content = tabs_content[i]
