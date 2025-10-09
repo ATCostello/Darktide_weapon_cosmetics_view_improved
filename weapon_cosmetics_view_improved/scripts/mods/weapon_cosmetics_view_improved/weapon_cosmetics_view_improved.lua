@@ -224,13 +224,8 @@ mod.on_all_mods_loaded = function()
 	end
 end
 
-mod.remove_item_from_wishlist = function(item)
-	if item then
-		local item_name = item.name
-		local item_dev_name = item.dev_name
-		local item_display_name = item.display_name
-		local item_gearid = item.__gear_id
-
+mod.remove_item_from_wishlist = function(item_name)
+	if item_name then
 		if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
 			for i, item1 in pairs(wishlisted_items) do
 				if item1.name == item_name then
@@ -393,39 +388,6 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 			widgets_by_name.wishlist_button.content.visible = true
 		else
 			widgets_by_name.wishlist_button.content.visible = false
-		end
-
-		-- remove purchased items from wishlist
-		if
-			item_on_wishlist
-				and self._previewed_item
-				and self._previewed_item.slot_weapon_skin
-				and self._previewed_item.slot_weapon_skin
-				and self._previewed_item.slot_weapon_skin.__locked
-				and self._previewed_item.slot_weapon_skin.__locked == false
-			or item_on_wishlist
-				and self._previewed_item
-				and self._previewed_item.slot_weapon_skin
-				and self._previewed_item.slot_weapon_skin
-				and not self._previewed_item.slot_weapon_skin.__locked
-		then
-			mod.remove_item_from_wishlist(self._previewed_item.slot_weapon_skin.__master_item)
-		elseif
-			item_on_wishlist
-				and self._previewed_item
-				and self._previewed_item.attachments
-				and self._previewed_item.attachments.slot_trinket_1
-				and self._previewed_item.attachments.slot_trinket_1.item
-				and self._previewed_item.attachments.slot_trinket_1.item.__locked
-				and self._previewed_item.attachments.slot_trinket_1.item.__locked == false
-			or item_on_wishlist
-				and self._previewed_item
-				and self._previewed_item.attachments
-				and self._previewed_item.attachments.slot_trinket_1
-				and self._previewed_item.attachments.slot_trinket_1.item
-				and not self._previewed_item.attachments.slot_trinket_1.item.__locked
-		then
-			mod.remove_item_from_wishlist(self._previewed_item.attachments.slot_trinket_1.item.__master_item)
 		end
 
 		Selected_purchase_offer = element.purchase_offer
@@ -1476,6 +1438,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 
 				if item then
 					local item_name = item.name
+
 					local found_achievement = locked_achievement_items_by_name[item_name]
 
 					locked_achievement_items_by_name[item_name] = nil
@@ -1857,6 +1820,9 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 					end
 
 					self._inventory_items[#self._inventory_items + 1] = item
+
+					-- remove any purchased items from wishlist on inventory load...
+					mod.remove_item_from_wishlist(item_name)
 
 					local valid = true
 
