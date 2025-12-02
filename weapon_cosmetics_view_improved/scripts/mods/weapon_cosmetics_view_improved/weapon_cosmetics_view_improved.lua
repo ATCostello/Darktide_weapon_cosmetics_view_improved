@@ -63,6 +63,8 @@ mod.grab_current_commodores_items = function(self, archetype)
 		storefront = "premium_store_skins_ogryn"
 	elseif archetype == "adamant" or archetype == nil and archetype_name == "adamant" then
 		storefront = "premium_store_skins_adamant"
+	elseif archetype == "broker" or archetype == nil and archetype_name == "broker" then
+		storefront = "premium_store_skins_broker"
 	end
 
 	local store_service = Managers.data_service.store
@@ -318,7 +320,7 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		local widgets_by_name = self._widgets_by_name
 
 		local can_be_equipped = mod.can_item_be_equipped(self, selected_item)
-		widgets_by_name.equip_button.content.visible = can_be_equipped
+		--widgets_by_name.equip_button.content.visible = can_be_equipped
 
 		local show_store_button = false
 		if element.purchase_offer then
@@ -1230,38 +1232,54 @@ local STORE_LAYOUT = {
 		display_name = "loc_premium_store_category_title_featured",
 		storefront = "premium_store_featured",
 		telemetry_name = "featured",
+		template = nil,
 		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 	},
 	{
 		display_name = "loc_premium_store_category_skins_title_veteran",
 		storefront = "premium_store_skins_veteran",
 		telemetry_name = "veteran",
+		template = nil,
 		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 	},
 	{
 		display_name = "loc_premium_store_category_skins_title_zealot",
 		storefront = "premium_store_skins_zealot",
 		telemetry_name = "zealot",
+		template = nil,
 		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 	},
 	{
 		display_name = "loc_premium_store_category_skins_title_psyker",
 		storefront = "premium_store_skins_psyker",
 		telemetry_name = "psyker",
+		template = nil,
 		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 	},
 	{
 		display_name = "loc_premium_store_category_skins_title_ogryn",
 		storefront = "premium_store_skins_ogryn",
 		telemetry_name = "ogryn",
-		template = ButtonPassTemplates.terminal_tab_menu_button,
+		template = nil,
+		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 	},
 	{
 		display_name = "loc_premium_store_category_skins_title_adamant",
+		require_archetype_ownership = nil,
 		storefront = "premium_store_skins_adamant",
 		telemetry_name = "adamant",
-		template = ButtonPassTemplates.terminal_tab_menu_button,
+		template = nil,
+		template = ButtonPassTemplates.terminal_tab_menu_with_divider_button,
 		require_archetype_ownership = Archetypes.adamant,
+	},
+	{
+		display_name = "loc_premium_store_category_skins_title_broker",
+		require_archetype_ownership = nil,
+		storefront = "premium_store_skins_broker",
+		telemetry_name = "broker",
+		template = nil,
+		template = ButtonPassTemplates.terminal_tab_menu_button,
+		require_archetype_ownership = Archetypes.broker,
 	},
 }
 
@@ -1381,13 +1399,15 @@ end
 local function items_by_name(entry_array, is_item)
 	local _items_by_name = {}
 
-	for i = 1, #entry_array do
-		local entry = entry_array[i]
-		local item = is_item and entry or entry.item
-		local name = item and item.name
+	if entry_array then
+		for i = 1, #entry_array do
+			local entry = entry_array[i]
+			local item = is_item and entry or entry.item
+			local name = item and item.name
 
-		if name then
-			_items_by_name[name] = entry
+			if name then
+				_items_by_name[name] = entry
+			end
 		end
 	end
 
@@ -1411,6 +1431,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 		local inventory_items = items and items.items
 		local penance_track_items = items and items.penance_track_items
 		local store_items = items and items.store_items
+		local premium_items = items and items.premium_items
 		local selected_slot = ItemSlotSettings[slot_name]
 		local achievement_items = self:_achievement_items(slot_name)
 		local player = self._preview_player
@@ -1419,6 +1440,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 		local locked_achievement_items_by_name = items_by_name(achievement_items, false)
 		local locked_store_items_by_name = items_by_name(store_items, false)
 		local locked_penance_track_items_by_name = items_by_name(penance_track_items, false)
+		local locked_premium_items_by_name = items_by_name(premium_items, false)
 
 		---------------------------------------------
 		local custom_items = items.custom
@@ -1450,6 +1472,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 					local found_penance_track = locked_penance_track_items_by_name[item_name]
 
 					locked_penance_track_items_by_name[item_name] = nil
+					locked_premium_items_by_name[item_name] = nil
 
 					local gear_id = item.gear_id
 					local is_new = self._context
@@ -1504,6 +1527,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 		local has_locked_achievement_item = next(locked_achievement_items_by_name) ~= nil
 		local has_locked_penance_track_item = next(locked_penance_track_items_by_name) ~= nil
 		local has_locked_store_item = next(locked_store_items_by_name) ~= nil
+		local has_locked_premium_item = next(locked_premium_items_by_name) ~= nil
 
 		-- Commented out default adding of locked items, as I want to handle this myself to include commodores...
 
@@ -1584,6 +1608,30 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 			}
 		end
 	end
+
+		for _, premium_item in pairs(locked_premium_items_by_name) do
+			local item = premium_item.item
+
+			if item then
+				local visual_item = generate_visual_item_function(premium_item.item, self._selected_item, item_type)
+
+				layout_count = layout_count + 1
+				layout[layout_count] = {
+					locked = true,
+					sort_group = 3,
+					widget_type = "item_icon",
+					item = visual_item,
+					real_item = premium_item.item,
+					slot = selected_slot,
+					store = premium_item.item,
+					premium_offer = premium_item.offer,
+					render_size = {
+						256,
+						128,
+					},
+				}
+			end
+		end
 	]]
 
 		--------------------------
@@ -1646,6 +1694,23 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 				end
 			end
 
+			-- also dedupe against premium items if present
+			--[[if premium_items then
+				for _, default_item in pairs(premium_items) do
+					if
+						default_item.item
+						and default_item.item.__master_item
+						and default_item.item.__master_item.display_name == skin_name
+					then
+						continue = false
+					end
+
+					if default_item.item and default_item.item and default_item.item.display_name == skin_name then
+						continue = false
+					end
+				end
+			end]]
+
 			if continue == true then
 				local visual_item = generate_visual_item_function(custom_item.item, self._selected_item, item_type)
 
@@ -1690,6 +1755,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 		local custom_items = {}
 		custom_items["slot_weapon_skin"] = {}
 		custom_items["slot_trinket_1"] = {}
+
 		-- Get all weapon cosmetics...
 		local weapon_cosmetics = {}
 		weapon_cosmetics = mod.get_weapon_cosmetic_items(self)
@@ -1788,8 +1854,10 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 
 		----------------------------------------------------------------------------------------
 
+		-- Base fetching flows + premium store
 		local slot_promises = {}
 
+		-- Inventory
 		slot_promises[#slot_promises + 1] = self._promise_container
 			:cancel_on_destroy(Managers.data_service.gear:fetch_inventory(character_id, slot_filter, item_type_filter))
 			:next(function(items)
@@ -1800,9 +1868,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 				local items_data = {}
 
 				if get_empty_item_function then
-					items_data[#items_data + 1] = {
-						empty_item = true,
-					}
+					items_data[#items_data + 1] = { empty_item = true }
 				end
 
 				local equipped_item_name = self:equipped_item_name_in_slot(slot_name)
@@ -1821,31 +1887,31 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 
 					self._inventory_items[#self._inventory_items + 1] = item
 
-					-- remove any purchased items from wishlist on inventory load...
+					-- Remove purchased items from wishlist on inventory load
 					mod.remove_item_from_wishlist(item_name)
 
 					local valid = true
-
 					if filter_on_weapon_template then
 						valid = self:_item_valid_by_current_pattern(item)
 					end
 
 					if valid then
-						items_data[#items_data + 1] = {
-							item = item,
-						}
+						items_data[#items_data + 1] = { item = item }
 					end
 				end
 
 				return Promise.resolved(items_data)
 			end)
+
+		-- Credits store (non-premium)
 		slot_promises[#slot_promises + 1] = self._promise_container
 			:cancel_on_destroy(Managers.data_service.store:get_credits_weapon_cosmetics_store())
 			:next(function(data)
 				local offers = data.offers
-
 				return self:_parse_store_items(slot_name, offers, {})
 			end)
+
+		-- Penance track
 		slot_promises[#slot_promises + 1] = self._promise_container
 			:cancel_on_destroy(Managers.data_service.penance_track:get_track(PENANCE_TRACK_ID))
 			:next(function(data)
@@ -1867,14 +1933,10 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 										and self:_item_valid_by_current_pattern(reward_item)
 										and table.find(reward_item.slots, slot_name)
 									then
-										local valid = true
-
-										if valid then
-											penance_track_items[#penance_track_items + 1] = {
-												item = reward_item,
-												label = Localize("loc_item_source_penance_track"),
-											}
-										end
+										penance_track_items[#penance_track_items + 1] = {
+											item = reward_item,
+											label = Localize("loc_item_source_penance_track"),
+										}
 									end
 								end
 							end
@@ -1884,8 +1946,48 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 
 				return Promise.resolved(penance_track_items)
 			end)
+
+		-- Premium store (new source behavior): collect all archetypes and merge
+		local premium_store_promises = Promise.resolved({})
+		local count = 0
+
+		for archetype_name, archetype_data in pairs(Archetypes) do
+			count = count + 1
+
+			local archetype_name = archetype_data.name
+			local has_premium_store = Managers.data_service.store:has_character_premium_store(archetype_name)
+
+			if has_premium_store then
+				premium_store_promises[count] = self._promise_container
+					:cancel_on_destroy(Managers.data_service.store:get_character_premium_store(archetype_name))
+					:next(function(data)
+						local offers = data.offers
+						local catalog_validity = data.catalog_validity
+						local valid_to = catalog_validity and catalog_validity.valid_to
+
+						self._premium_rotation_ends_at = valid_to
+
+						return self:_parse_store_items(slot_name, offers, {})
+					end)
+			else
+				premium_store_promises[count] = Promise.resolved({})
+			end
+		end
+
+		slot_promises[#slot_promises + 1] = Promise.all(unpack(premium_store_promises)):next(function(stores)
+			local merged_stores = {}
+			for i = 1, #stores do
+				table.merge(merged_stores, stores[i])
+			end
+			return merged_stores
+		end)
+
+		-- Consolidate per-tab
 		promises[i] = Promise.all(unpack(slot_promises)):next(function(items)
 			local newitems = {}
+
+			dbg_cust = custom_items
+
 			if tab_content.slot_name == "slot_weapon_skin" then
 				newitems = custom_items["slot_weapon_skin"]
 			elseif tab_content.slot_name == "slot_trinket_1" then
@@ -1896,6 +1998,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 				items = items[1],
 				store_items = items[2],
 				penance_track_items = items[3],
+				premium_items = items[4],
 				custom = newitems,
 			}
 		end)
@@ -2155,6 +2258,8 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 				Category_index = 5
 			elseif archetype_name == "adamant" then
 				Category_index = 6
+			elseif archetype_name == "broker" then
+				Category_index = 7
 			end
 
 			if CCVI then
@@ -2200,7 +2305,9 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 			storefront = "premium_store_skins_ogryn"
 		elseif archetype == "adamant" or archetype == nil and archetype_name == "adamant" then
 			storefront = "premium_store_skins_adamant"
-		end
+		elseif archetype == "broker" or archetype == nil and archetype_name == "broker" then
+		storefront = "premium_store_skins_broker"
+	end
 
 		local store_service = Managers.data_service.store
 
