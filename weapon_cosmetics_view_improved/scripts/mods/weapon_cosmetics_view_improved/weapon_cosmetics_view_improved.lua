@@ -1286,17 +1286,11 @@ local STORE_LAYOUT = {
 local opened_store = false
 
 StoreView._on_page_index_selected = function(self, page_index)
-	self._selected_page_index = page_index
-
 	local category_index = self._selected_category_index
 	local category_layout = STORE_LAYOUT[category_index]
 	local category_name = category_layout.telemetry_name
 
 	self:_set_telemetry_name(category_name, page_index)
-
-	if self._page_panel then
-		self._page_panel:set_selected_index(page_index)
-	end
 
 	local category_pages_layout_data = self._category_pages_layout_data
 
@@ -1305,21 +1299,63 @@ StoreView._on_page_index_selected = function(self, page_index)
 	end
 
 	local page_layout = category_pages_layout_data[page_index]
-	local grid_settings = page_layout.grid_settings
-	local elements = page_layout.elements
-	local storefront_layout = self:_debug_generate_layout(grid_settings)
 
-	self:_setup_grid(elements, grid_settings)
-	self:_start_animation("grid_entry", self._grid_widgets, self)
-
-	local grid_index = self:_get_first_grid_panel_index()
-
-	if not self._using_cursor_navigation and grid_index then
-		self:_set_selected_grid_index(grid_index)
+	if not page_layout then
+		return
 	end
 
-	self._widgets_by_name.navigation_arrow_left.content.visible = page_index > 1
-	self._widgets_by_name.navigation_arrow_right.content.visible = page_index < #category_pages_layout_data
+	local previous_page_index = self._selected_page_index
+
+	self._selected_page_index = page_index
+
+	if self._page_panel then
+		self._page_panel:set_selected_index(page_index)
+	end
+
+	local grid_settings = page_layout.grid_settings
+	local elements = page_layout.elements
+	local sequence_promise
+
+	if self:_is_animation_active(self._grid_exit_animation_id) then
+		sequence_promise = Promise.until_value_is_true(function ()
+			return self._grid_widgets == nil
+		end)
+	else
+		sequence_promise = Promise.resolved():next(function ()
+			self:_destroy_current_grid()
+		end)
+	end
+
+	sequence_promise:next(function ()
+		self:_setup_grid(elements, grid_settings)
+
+		local image_promises = {}
+
+		for i = 1, #self._grid_widgets do
+			self._grid_widgets[i].alpha_multiplier = 0
+
+			local image_promise = self._grid_widgets[i].config._texture_load_promise
+
+			if image_promise then
+				table.insert(image_promises, image_promise)
+			end
+		end
+
+		local promise
+
+		if #image_promises > 0 then
+			promise = Promise.race(Promise.delay(0.5), Promise.all(unpack(image_promises)))
+		else
+			promise = Promise.resolved()
+		end
+
+		promise:next(callback(self, "_show_grid_entries", page_index, previous_page_index), function ()
+			return
+		end)
+	end)
+
+
+
 	if Selected_purchase_offer and not opened_store then
 		opened_store = true
 		for i = 1, #self._category_pages_layout_data do
@@ -1393,6 +1429,14 @@ StoreView._initialize_opening_page = function(self)
 		page_index = 1,
 	}
 
+	if self._context.target_storefront then
+		for i = 1, #STORE_LAYOUT do
+			if STORE_LAYOUT[i].storefront == self._context.target_storefront then
+				path.category_index = i
+			end
+		end
+	end
+	
 	self:_open_navigation_path(path)
 end
 
