@@ -49,36 +49,60 @@ current_commodores_offers = {}
 
 mod.grab_current_commodores_items = function(self, archetype)
 	local player = Managers.player:local_player(1)
-	local character_id = player:character_id()
-	local archetype_name = player:archetype_name()
-	local storefront = "premium_store_featured"
+	local archetype_name = player and player:archetype_name() or nil
 
-	if archetype == "veteran" or archetype == nil and archetype_name == "veteran" then
+	-- Resolve archetype storefront
+	local storefront = "premium_store_featured"
+	if archetype == "veteran" or (archetype == nil and archetype_name == "veteran") then
 		storefront = "premium_store_skins_veteran"
-	elseif archetype == "zealot" or archetype == nil and archetype_name == "zealot" then
+	elseif archetype == "zealot" or (archetype == nil and archetype_name == "zealot") then
 		storefront = "premium_store_skins_zealot"
-	elseif archetype == "psyker" or archetype == nil and archetype_name == "psyker" then
+	elseif archetype == "psyker" or (archetype == nil and archetype_name == "psyker") then
 		storefront = "premium_store_skins_psyker"
-	elseif archetype == "ogryn" or archetype == nil and archetype_name == "ogryn" then
+	elseif archetype == "ogryn" or (archetype == nil and archetype_name == "ogryn") then
 		storefront = "premium_store_skins_ogryn"
-	elseif archetype == "adamant" or archetype == nil and archetype_name == "adamant" then
+	elseif archetype == "adamant" or (archetype == nil and archetype_name == "adamant") then
 		storefront = "premium_store_skins_adamant"
-	elseif archetype == "broker" or archetype == nil and archetype_name == "broker" then
+	elseif archetype == "broker" or (archetype == nil and archetype_name == "broker") then
 		storefront = "premium_store_skins_broker"
 	end
 
 	local store_service = Managers.data_service.store
 
-	local _store_promise = store_service:get_premium_store(storefront)
+	-- Always include featured storefront as well
+	local promises = {}
 
-	if not _store_promise then
+	local archetype_promise = store_service:get_premium_store(storefront)
+	if archetype_promise then
+		table.insert(promises, archetype_promise)
+	end
+
+	local featured_promise = store_service:get_premium_store("premium_store_featured")
+	if featured_promise then
+		table.insert(promises, featured_promise)
+	end
+
+	if #promises == 0 then
 		return Promise:resolved()
 	end
 
-	return _store_promise:next(function(data)
-		for i = 1, #data.offers do
-			data.offers[i]["layout_config"] = data.layout_config
-			table.insert(current_commodores_offers, data.offers[i])
+	return Promise.all(unpack(promises)):next(function(results)
+		-- Merge offers from all results, avoid duplicates by offerId
+		local seen = {}
+		for r = 1, #results do
+			local data = results[r]
+			if data and data.offers then
+				for i = 1, #data.offers do
+					local offer = data.offers[i]
+					local offer_id = offer and offer.offerId
+					if offer_id and not seen[offer_id] then
+						seen[offer_id] = true
+						-- Attach layout_config reference if present on this result
+						offer["layout_config"] = data.layout_config
+						table.insert(current_commodores_offers, offer)
+					end
+				end
+			end
 		end
 	end)
 end
@@ -1317,16 +1341,16 @@ StoreView._on_page_index_selected = function(self, page_index)
 	local sequence_promise
 
 	if self:_is_animation_active(self._grid_exit_animation_id) then
-		sequence_promise = Promise.until_value_is_true(function ()
+		sequence_promise = Promise.until_value_is_true(function()
 			return self._grid_widgets == nil
 		end)
 	else
-		sequence_promise = Promise.resolved():next(function ()
+		sequence_promise = Promise.resolved():next(function()
 			self:_destroy_current_grid()
 		end)
 	end
 
-	sequence_promise:next(function ()
+	sequence_promise:next(function()
 		self:_setup_grid(elements, grid_settings)
 
 		local image_promises = {}
@@ -1349,12 +1373,10 @@ StoreView._on_page_index_selected = function(self, page_index)
 			promise = Promise.resolved()
 		end
 
-		promise:next(callback(self, "_show_grid_entries", page_index, previous_page_index), function ()
+		promise:next(callback(self, "_show_grid_entries", page_index, previous_page_index), function()
 			return
 		end)
 	end)
-
-
 
 	if Selected_purchase_offer and not opened_store then
 		opened_store = true
@@ -1436,7 +1458,7 @@ StoreView._initialize_opening_page = function(self)
 			end
 		end
 	end
-	
+
 	self:_open_navigation_path(path)
 end
 
@@ -2335,36 +2357,60 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 
 	mod.grab_current_commodores_items = function(self, archetype)
 		local player = Managers.player:local_player(1)
-		local character_id = player:character_id()
-		local archetype_name = player:archetype_name()
-		local storefront = "premium_store_featured"
+		local archetype_name = player and player:archetype_name() or nil
 
-		if archetype == "veteran" or archetype == nil and archetype_name == "veteran" then
+		-- Resolve archetype storefront
+		local storefront = "premium_store_featured"
+		if archetype == "veteran" or (archetype == nil and archetype_name == "veteran") then
 			storefront = "premium_store_skins_veteran"
-		elseif archetype == "zealot" or archetype == nil and archetype_name == "zealot" then
+		elseif archetype == "zealot" or (archetype == nil and archetype_name == "zealot") then
 			storefront = "premium_store_skins_zealot"
-		elseif archetype == "psyker" or archetype == nil and archetype_name == "psyker" then
+		elseif archetype == "psyker" or (archetype == nil and archetype_name == "psyker") then
 			storefront = "premium_store_skins_psyker"
-		elseif archetype == "ogryn" or archetype == nil and archetype_name == "ogryn" then
+		elseif archetype == "ogryn" or (archetype == nil and archetype_name == "ogryn") then
 			storefront = "premium_store_skins_ogryn"
-		elseif archetype == "adamant" or archetype == nil and archetype_name == "adamant" then
+		elseif archetype == "adamant" or (archetype == nil and archetype_name == "adamant") then
 			storefront = "premium_store_skins_adamant"
-		elseif archetype == "broker" or archetype == nil and archetype_name == "broker" then
-		storefront = "premium_store_skins_broker"
-	end
+		elseif archetype == "broker" or (archetype == nil and archetype_name == "broker") then
+			storefront = "premium_store_skins_broker"
+		end
 
 		local store_service = Managers.data_service.store
 
-		local _store_promise = store_service:get_premium_store(storefront)
+		-- Always include featured storefront as well
+		local promises = {}
 
-		if not _store_promise then
+		local archetype_promise = store_service:get_premium_store(storefront)
+		if archetype_promise then
+			table.insert(promises, archetype_promise)
+		end
+
+		local featured_promise = store_service:get_premium_store("premium_store_featured")
+		if featured_promise then
+			table.insert(promises, featured_promise)
+		end
+
+		if #promises == 0 then
 			return Promise:resolved()
 		end
 
-		return _store_promise:next(function(data)
-			for i = 1, #data.offers do
-				data.offers[i]["layout_config"] = data.layout_config
-				table.insert(current_commodores_offers, data.offers[i])
+		return Promise.all(unpack(promises)):next(function(results)
+			-- Merge offers from all results, avoid duplicates by offerId
+			local seen = {}
+			for r = 1, #results do
+				local data = results[r]
+				if data and data.offers then
+					for i = 1, #data.offers do
+						local offer = data.offers[i]
+						local offer_id = offer and offer.offerId
+						if offer_id and not seen[offer_id] then
+							seen[offer_id] = true
+							-- Attach layout_config reference if present on this result
+							offer["layout_config"] = data.layout_config
+							table.insert(current_commodores_offers, offer)
+						end
+					end
+				end
 			end
 		end)
 	end
