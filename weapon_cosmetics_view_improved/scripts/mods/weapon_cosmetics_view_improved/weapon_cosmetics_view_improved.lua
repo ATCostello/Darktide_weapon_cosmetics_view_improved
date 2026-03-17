@@ -1332,6 +1332,9 @@ StoreView._on_page_index_selected = function(self, page_index)
 
 	self._selected_page_index = page_index
 
+	self._widgets_by_name.navigation_arrow_left.content.visible = page_index > 1
+	self._widgets_by_name.navigation_arrow_right.content.visible = page_index < #self._category_pages_layout_data
+
 	if self._page_panel then
 		self._page_panel:set_selected_index(page_index)
 	end
@@ -1549,7 +1552,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 					local real_item = not is_empty and item or nil
 
 					-- set rarity of item based on source...
-					if item.__master_item and item.__master_item.source then
+					--[[if item.__master_item and item.__master_item.source then
 						local new_rarity = -1
 						if item.__master_item.source == 1 then
 							new_rarity = 3
@@ -1565,7 +1568,7 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 
 						visual_item.rarity = new_rarity
 						real_item.__master_item.rarity = new_rarity
-					end
+					end]]
 
 					layout_count = layout_count + 1
 					layout[layout_count] = {
@@ -1883,7 +1886,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 					end
 
 					-- set rarity of item based on source...
-					if item.source == 1 then
+					--[[if item.source == 1 then
 						item.rarity = 3
 					elseif item.source == 2 then
 						item.rarity = 4
@@ -1891,7 +1894,7 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 						item.rarity = 5
 					else
 						item.rarity = 2
-					end
+					end]]
 
 					if continue then
 						table.insert(custom_items[selected_item_slot], {
