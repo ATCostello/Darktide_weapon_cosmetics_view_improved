@@ -468,9 +468,7 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 	end
 end)
 
-mod:hook(CLASS.InventoryView, "on_enter", function(func, self, ...)
-	func(self, ...)
-
+mod:hook_safe(CLASS.InventoryView, "on_enter", function(self)
 	-- cache available commodores shop items when entering the inventory...
 	mod.grab_current_commodores_items(self)
 end)
@@ -479,9 +477,7 @@ mod:hook_require("scripts/ui/pass_templates/item_pass_templates", function(insta
 	instance.item_icon = {}
 end)
 
-mod:hook(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(func, self, ...)
-	func(self, ...)
-
+mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(self)
 	mod.get_wishlist()
 
 	-- Updating the default widgets for the grid entries to add custom icons for wishlists, store prices etc...
@@ -2054,8 +2050,6 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 		-- Consolidate per-tab
 		promises[i] = Promise.all(unpack(slot_promises)):next(function(items)
 			local newitems = {}
-
-			dbg_cust = custom_items
 
 			if tab_content.slot_name == "slot_weapon_skin" then
 				newitems = custom_items["slot_weapon_skin"]
