@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.5.05"
+mod.version = "2.5.06"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -41,7 +41,7 @@ mod:add_global_localize_strings({
 	},
 })
 
-return {
+mod.localisation = {
 	mod_name = {
 		en = "{#color("
 			.. colours.title
@@ -50,6 +50,18 @@ return {
 		ru = "Улучшенный осмотр косметических элементов оружия",
 		["zh-cn"] = "武器装饰品视图改进",
 	},
+	mod_name_pizazz = {
+		en = "{#color("
+			.. colours.title
+			.. ")} "
+			.. "{#color(255,0,0)}W{#color(250,0,0)}e{#color(246,0,0)}a{#color(241,0,0)}p{#color(237,0,0)}o{#color(232,0,0)}n {#color(228,0,0)}C{#color(224,0,0)}o{#color(219,0,0)}s{#color(215,0,0)}m{#color(210,0,0)}e{#color(206,0,0)}t{#color(201,0,0)}i{#color(197,0,0)}c{#color(193,0,0)}s {#color(188,0,0)}V{#color(184,0,0)}i{#color(179,0,0)}e{#color(175,0,0)}w {#color(170,0,0)}I{#color(166,0,0)}m{#color(162,0,0)}p{#color(157,0,0)}r{#color(153,0,0)}o{#color(148,0,0)}v{#color(144,0,0)}e{#color(140,0,0)}d{#reset()}",
+		ru = "Улучшенный осмотр косметических элементов оружия",
+		["zh-cn"] = "武器装饰品视图改进",
+	},
+	mod_name_boring = {
+		en = "Weapon Cosmetics View Improved",
+	},
+
 	mod_description = {
 		en = "{#color("
 			.. colours.text
@@ -72,6 +84,12 @@ return {
 		ru = "Weapon Cosmetics View Improved - Позволяет просматривать заблокированные косметические элементы оружия, такие как скины и безделушки (включая премиум-предметы), точно так же, как и на экране осмотра косметических вещей персонажа.",
 		["zh-cn"] = "使你可以像角色装饰品页面一样预览全部的皮肤和饰品。",
 	},
+	mod_name_pizazz_toggle = {
+		en = "Enable Name Pizazz",
+	},
+	mod_name_pizazz_tooltip = {
+		en = "Toggles the rainbow colours effect on the mod name text. Requires a reload.\nIf enabled, you will get a small euphoric experience everytime you scroll through the mod menu, \nIf disabled - you will be a John Darktide and have no rainbow sprinkles (but I'll love you anyway).",
+	},
 	general_settings = {
 		en = "{#color(" .. colours.title .. ")}General Settings{#reset()}",
 	},
@@ -82,3 +100,21 @@ return {
 		en = "A placeholder entry to initialise the mod menu, does not do anything yet.\nMore features may be added at some point.",
 	},
 }
+
+mod.toggle_pizazz = function()
+	for key, values in pairs(mod.localisation) do
+		if key == "mod_name" then
+			for language, text in pairs(values) do
+				if mod:get("mod_name_pizazz_toggle") then
+					mod.localisation[key][language] = mod.localisation["mod_name_pizazz"][language]
+				else
+					mod.localisation[key][language] = mod.localisation["mod_name_boring"][language]
+				end
+			end
+		end
+	end
+end
+
+mod.toggle_pizazz()
+
+return mod.localisation
