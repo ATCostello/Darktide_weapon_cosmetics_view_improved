@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.5.06"
+mod.version = "2.6.2"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -83,6 +83,11 @@ mod.localisation = {
 			.. "{#reset()}",
 		ru = "Weapon Cosmetics View Improved - Позволяет просматривать заблокированные косметические элементы оружия, такие как скины и безделушки (включая премиум-предметы), точно так же, как и на экране осмотра косметических вещей персонажа.",
 		["zh-cn"] = "使你可以像角色装饰品页面一样预览全部的皮肤和饰品。",
+	},
+	show_unobtainable = {
+		en = "Show Unobtainable Cosmetics",
+		ru = "Показывать недоступные косметические предметы",
+		["zh-cn"] = "显示无法获取的装饰品",
 	},
 	mod_name_pizazz_toggle = {
 		en = "Enable Name Pizazz",

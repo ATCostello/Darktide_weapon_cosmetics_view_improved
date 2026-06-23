@@ -18,6 +18,12 @@ return {
 						default_value = true,
 						tooltip = "mod_name_pizazz_tooltip",
 					},
+					{
+						setting_id = "show_unobtainable",
+						type = "checkbox",
+						default_value = false,
+						tooltip = "show_unobtainable_tooltip",
+					},
 				},
 			},
 		},
