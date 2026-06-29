@@ -1248,29 +1248,32 @@ CosmeticsInspectView._start_preview_item = function(self)
 		if animation_slot then
 			local context = self._context
 			local state_machine = item.state_machine
+			local companion_state_machine = item.companion_state_machine
 			local item_animation_event = item.animation_event
 			local item_face_animation_event = item.face_animation_event
-			local animation_event_name_suffix = self._animation_event_name_suffix
 			self._parent = context.parent
 
 			self._disable_zoom = context.disable_zoom or true
-			context.state_machine = context.state_machine or item.state_machine
+			context.state_machine = context.state_machine or state_machine
 			context.animation_event = context.animation_event or item_animation_event
 			context.face_animation_event = self._previewed_with_gear
 				and (context.face_animation_event or item_face_animation_event)
-
-			local animation_event = item_animation_event
-
-			if animation_event_name_suffix then
-				animation_event = animation_event .. animation_event_name_suffix
-			end
+			context.companion_state_machine = context.companion_state_machine or companion_state_machine
+			context.companion_animation_event = context.companion_animation_event or item_animation_event
 
 			if self._profile_spawner then
 				self._profile_spawner:assign_state_machine(
 					context.state_machine,
-					context.animation_event,
-					context.face_animation_event
+					context.item_animation_event,
+					context.item_face_animation_event
 				)
+
+				if companion_state_machine and companion_state_machine ~= "" then
+					self._profile_spawner:assign_companion_state_machine(
+						context.companion_state_machine,
+						context.companion_animation_event
+					)
+				end
 			end
 
 			local animation_event_variable_data = self._animation_event_variable_data
@@ -1281,6 +1284,17 @@ CosmeticsInspectView._start_preview_item = function(self)
 
 				if self._profile_spawner then
 					self._profile_spawner:assign_animation_variable(index, value)
+				end
+			end
+
+			local companion_animation_event_variable_data = self._companion_animation_event_variable_data
+
+			if companion_animation_event_variable_data and self._profile_spawner then
+				local index = companion_animation_event_variable_data.index
+				local value = companion_animation_event_variable_data.value
+
+				if self._profile_spawner then
+					self._profile_spawner:assign_companion_animation_variable(index, value)
 				end
 			end
 
@@ -1325,8 +1339,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 
 					self:_setup_weapon_preview()
 
-					weapon_preview_loaded = true
-
 					self._widgets_by_name.portrait_preview_panel.visible = true
 					local icon
 					if item.texture_resource then
@@ -1350,7 +1362,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 					self._previewed_with_gear = false
 
 					self:_setup_weapon_preview()
-					weapon_preview_loaded = true
 
 					local widget = self._widgets_by_name.character_insignia
 					widget.visible = true
@@ -1372,7 +1383,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 				self._max_zoom = 4
 
 				self:_setup_weapon_preview()
-				weapon_preview_loaded = true
 				local visual_item = ItemUtils.weapon_trinket_preview_item(item)
 				CosmeticsInspectView._preview_item_func(self, visual_item)
 			elseif item.item_type == "CHARACTER_TITLE" then
@@ -1384,7 +1394,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 				self.hide_character = true
 
 				self:_setup_weapon_preview()
-				weapon_preview_loaded = true
 			elseif
 				item.item_type == "WEAPON_SKIN" and not Managers.ui:view_active("inventory_weapon_cosmetics_view")
 			then
@@ -1401,7 +1410,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 				self._max_zoom = 4
 
 				self:_setup_weapon_preview()
-				weapon_preview_loaded = true
 				local visual_item = ItemUtils.weapon_skin_preview_item(item)
 				CosmeticsInspectView._preview_item_func(self, visual_item)
 			else
@@ -1418,7 +1426,6 @@ CosmeticsInspectView._start_preview_item = function(self)
 				self._max_zoom = 4
 
 				self:_setup_weapon_preview(true)
-				weapon_preview_loaded = true
 			end
 		end
 
@@ -2759,59 +2766,67 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 			previewed_item = self._previewed_item.slot_weapon_skin.__master_item
 		end
 
+		local item_type = previewed_item.item_type
+		local is_weapon = item_type == "WEAPON_MELEE" or item_type == "WEAPON_RANGED"
+
+		if is_weapon or item_type == "GADGET" then
+			view_name = "inventory_weapon_details_view"
+		end
+
+		local is_weapon_skin = item_type == "WEAPON_SKIN"
+		local visual_item = is_weapon_skin and Items.weapon_skin_preview_item(previewed_item, true) or previewed_item
+		local real_profile = self:_player():profile()
+		local player_profile = real_profile and table.clone_instance(real_profile)
+		local player_archetype = player_profile and player_profile.archetype
+		local correct_archetype = visual_item.archetypes == nil
+			or #visual_item.archetypes == 0
+			or player_archetype ~= nil and table.array_contains(visual_item.archetypes, player_archetype.name)
+		local correct_breed = visual_item.breeds == nil
+			or #visual_item.breeds == 0
+			or player_archetype ~= nil and table.array_contains(visual_item.breeds, player_archetype.breed)
+		local is_item_supported_on_played_character = correct_archetype and correct_breed
+		local preferred_gender = player_profile and player_profile.gender
+
+		player_profile = is_item_supported_on_played_character and player_profile
+			or Items.create_mannequin_profile_by_item(visual_item, preferred_gender)
+
 		local context
 
-		if previewed_item then
-			local item_type = previewed_item.item_type
-			local is_weapon = item_type == "WEAPON_MELEE" or item_type == "WEAPON_RANGED"
+		if is_weapon_skin then
+			local slots = visual_item.slots
+			local slot_name = slots[1]
 
-			if is_weapon or item_type == "GADGET" then
-				view_name = "inventory_weapon_details_view"
-			end
+			player_profile.loadout[slot_name] = visual_item
 
-			local player = self:_player()
-			local player_profile = player:profile()
-			local include_skin_item_texts = true
-			local item = item_type == "WEAPON_SKIN"
-					and ItemUtils.weapon_skin_preview_item(previewed_item, include_skin_item_texts)
-				or previewed_item
-			local is_item_supported_on_played_character = false
-			local item_archetypes = item.archetypes
-
-			if item_archetypes and not table.is_empty(item_archetypes) then
-				is_item_supported_on_played_character =
-					table.array_contains(item_archetypes, player_profile.archetype.name)
-			else
-				is_item_supported_on_played_character = true
-			end
-
-			local profile = is_item_supported_on_played_character and table.clone_instance(player_profile)
-				or ItemUtils.create_mannequin_profile_by_item(item)
+			local archetype = player_profile.archetype
+			local breed_name = archetype.breed
+			local inventory_state_machine = archetype.inventory_state_machine
+			local animation_event = visual_item.inventory_animation_event or "inventory_idle_default"
 
 			context = {
-				use_store_appearance = true,
-				profile = profile,
+				animation_event = nil,
+				disable_zoom = true,
+				preview_item = nil,
+				preview_with_gear = nil,
+				profile = nil,
+				state_machine = nil,
+				wield_slot = nil,
+				profile = player_profile,
+				state_machine = inventory_state_machine,
+				animation_event = animation_event,
+				wield_slot = slot_name,
 				preview_with_gear = is_item_supported_on_played_character,
-				preview_item = item,
+				preview_item = visual_item,
 			}
-
-			if item_type == "WEAPON_SKIN" then
-				local slots = item.slots
-				local slot_name = slots[1]
-
-				profile.loadout[slot_name] = item
-
-				local archetype = profile.archetype
-				local breed_name = archetype.breed
-				local breed = Breeds[breed_name]
-				local state_machine = breed.inventory_state_machine
-				local animation_event = item.inventory_animation_event or "inventory_idle_default"
-
-				context.disable_zoom = true
-				context.state_machine = state_machine
-				context.animation_event = animation_event
-				context.wield_slot = slot_name
-			end
+		else
+			context = {
+				preview_item = nil,
+				preview_with_gear = nil,
+				profile = nil,
+				profile = player_profile,
+				preview_with_gear = is_item_supported_on_played_character,
+				preview_item = previewed_item,
+			}
 		end
 
 		if context and not Managers.ui:view_active(view_name) then
