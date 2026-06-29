@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.6.2"
+mod.version = "2.6.0"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -88,6 +88,9 @@ mod.localisation = {
 		en = "Show Unobtainable Cosmetics",
 		ru = "Показывать недоступные косметические предметы",
 		["zh-cn"] = "显示无法获取的装饰品",
+	},
+	show_unobtainable_tooltip = {
+		en = "Toggle showing of unobtainable items. These are items that have been datamined, but have no set sources yet.\n\nThis mostly includes items that may come in future updates, or are debug/placeholders. ",
 	},
 	mod_name_pizazz_toggle = {
 		en = "Enable Name Pizazz",

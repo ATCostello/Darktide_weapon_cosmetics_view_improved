@@ -1044,6 +1044,418 @@ mod.can_item_be_equipped = function(self, selected_item)
 	return can_be_equipped
 end
 
+
+----------------------------------------------------------------------------------
+-- COPIED FROM PENANCES_IMPROVED -------------------------------------------------
+----------------------------------------------------------------------------------
+
+local CosmeticsInspectViewSettings = require("scripts/ui/views/cosmetics_inspect_view/cosmetics_inspect_view_settings")
+local ItemSlotSettings = require("scripts/settings/item/item_slot_settings")
+local UIWorldSpawner = require("scripts/managers/ui/ui_world_spawner")
+local WorldRenderUtils = require("scripts/utilities/world_render")
+local ANIMATION_SLOTS_MAP = {
+	slot_animation_emote_1 = true,
+	slot_animation_emote_2 = true,
+	slot_animation_emote_3 = true,
+	slot_animation_emote_4 = true,
+	slot_animation_emote_5 = true,
+	slot_animation_end_of_round = true,
+}
+
+CosmeticsInspectView._setup_background_world = function(self)
+	local profile = self._preview_profile or self._mannequin_profile
+	local archetype = profile and profile.archetype
+	local breed_name = archetype and archetype.breed or "human"
+	local breed = Breeds[breed_name]
+	local body_size = breed.body_size
+	local default_camera_event_id = string.format("event_register_%s_cosmetics_preview_default_camera", body_size)
+
+	self[default_camera_event_id] = function(instance, camera_unit)
+		if instance._context then
+			instance._context.camera_unit = camera_unit
+		end
+
+		instance._default_camera_unit = camera_unit
+
+		local viewport_name = CosmeticsInspectViewSettings.viewport_name
+		local viewport_type = CosmeticsInspectViewSettings.viewport_type
+		local viewport_layer = CosmeticsInspectViewSettings.viewport_layer
+		local shading_environment = CosmeticsInspectViewSettings.shading_environment
+
+		instance._world_spawner:create_viewport(
+			camera_unit,
+			viewport_name,
+			viewport_type,
+			viewport_layer,
+			shading_environment
+		)
+		instance:_unregister_event(default_camera_event_id)
+	end
+
+	self:_register_event(default_camera_event_id)
+
+	self._item_camera_by_slot_id = {}
+
+	for slot_name, slot in pairs(ItemSlotSettings) do
+		local is_gear = slot.slot_type == "gear"
+		local is_body = slot.slot_type == "body"
+		local is_companion_gear = slot_name == "slot_companion_gear_full"
+		local valid_player_slot = is_gear and not is_companion_gear
+
+		valid_player_slot = valid_player_slot or is_body
+
+		if valid_player_slot then
+			local item_camera_event_id =
+				string.format("event_register_%s_%s_cosmetics_preview_item_camera", body_size, slot_name)
+
+			self[item_camera_event_id] = function(instance, camera_unit)
+				instance._item_camera_by_slot_id[slot_name] = camera_unit
+
+				instance:_unregister_event(item_camera_event_id)
+			end
+
+			self:_register_event(item_camera_event_id)
+		elseif archetype and archetype.companion_breed and is_companion_gear then
+			local item_camera_event_id =
+				string.format("event_register_%s_%s_cosmetics_preview_item_camera", archetype.name, slot_name)
+
+			self[item_camera_event_id] = function(instance, camera_unit)
+				instance._item_camera_by_slot_id[slot_name] = camera_unit
+
+				instance:_unregister_event(item_camera_event_id)
+			end
+
+			self:_register_event(item_camera_event_id)
+		end
+	end
+
+	self:_register_event("event_register_cosmetics_preview_character_spawn_point")
+
+	local world_name = CosmeticsInspectViewSettings.world_name
+	local world_layer = CosmeticsInspectViewSettings.world_layer
+	local world_timer_name = CosmeticsInspectViewSettings.timer_name
+
+	self._world_spawner = UIWorldSpawner:new(world_name, world_layer, world_timer_name, self.view_name)
+
+	local level_name = CosmeticsInspectViewSettings.level_name
+
+	self._world_spawner:spawn_level(level_name)
+end
+
+CosmeticsInspectView._setup_weapon_preview = function(self, blur)
+	if not self._weapon_preview then
+		local reference_name = "weapon_preview"
+		local layer = 10
+		local context = {
+			draw_background = false,
+			ignore_blur = blur or false,
+		}
+		self._weapon_preview = self:_add_element(ViewElementInventoryWeaponPreview, reference_name, layer, context)
+
+		local allow_rotation = true
+
+		self._weapon_preview:set_force_allow_rotation(allow_rotation)
+		self._weapon_preview:center_align(0, {
+			-0.2,
+			-0.3,
+			-0.25,
+		})
+	end
+end
+
+CosmeticsInspectView._set_weapon_zoom = function(self, fraction)
+	self._weapon_zoom_fraction = fraction
+
+	self:_update_weapon_preview_viewport()
+end
+
+CosmeticsInspectView._update_weapon_preview_viewport = function(self)
+	local weapon_preview = self._weapon_preview
+
+	if weapon_preview then
+		local weapon_zoom_fraction = self._weapon_zoom_fraction or 1
+		local use_custom_zoom = true
+		local optional_node_name = "p_zoom"
+		local optional_pos
+		local min_zoom = self._min_zoom
+		local max_zoom = self._max_zoom
+
+		weapon_preview:set_weapon_zoom(
+			weapon_zoom_fraction,
+			use_custom_zoom,
+			optional_node_name,
+			optional_pos,
+			min_zoom,
+			max_zoom
+		)
+	end
+end
+
+CosmeticsInspectView._preview_item_func = function(self, item)
+	if item then
+		local item_display_name = item.display_name
+		local slots = item.slots or {}
+		local item_name = item.name
+		local gear_id = item.gear_id or item_name
+
+		if self._weapon_preview then
+			local disable_auto_spin = false
+
+			self._weapon_preview:present_item(item, disable_auto_spin, function()
+				self:_set_weapon_zoom(self._weapon_zoom_fraction)
+			end)
+		end
+
+		local visible = true
+
+		self:_set_preview_widgets_visibility(visible)
+	end
+end
+
+CosmeticsInspectView._start_preview_item = function(self)
+	local item = self._preview_item
+	self._previewed_item = item
+	self._spawn_player = true
+	self:_stop_previewing()
+
+	if self._widgets_by_name.portrait_preview_panel then
+		self._widgets_by_name.portrait_preview_panel.visible = false
+	end
+	if self._widgets_by_name.character_insignia then
+		self._widgets_by_name.character_insignia.visible = false
+	end
+
+	if item then
+		local item_display_name = item.display_name
+
+		if string.match(item_display_name, "unarmed") then
+			return
+		end
+
+		local item_name = item.name
+		local selected_slot = self._selected_slot
+		local selected_slot_name = selected_slot and selected_slot.name
+		local presentation_profile = self._presentation_profile
+		local presentation_loadout = presentation_profile.loadout
+
+		if selected_slot_name then
+			presentation_loadout[selected_slot_name] = item
+		end
+
+		local animation_slot = ANIMATION_SLOTS_MAP[selected_slot_name]
+
+		if animation_slot then
+			local context = self._context
+			local state_machine = item.state_machine
+			local item_animation_event = item.animation_event
+			local item_face_animation_event = item.face_animation_event
+			local animation_event_name_suffix = self._animation_event_name_suffix
+			self._parent = context.parent
+
+			self._disable_zoom = context.disable_zoom or true
+			context.state_machine = context.state_machine or item.state_machine
+			context.animation_event = context.animation_event or item_animation_event
+			context.face_animation_event = self._previewed_with_gear
+				and (context.face_animation_event or item_face_animation_event)
+
+			local animation_event = item_animation_event
+
+			if animation_event_name_suffix then
+				animation_event = animation_event .. animation_event_name_suffix
+			end
+
+			if self._profile_spawner then
+				self._profile_spawner:assign_state_machine(
+					context.state_machine,
+					context.animation_event,
+					context.face_animation_event
+				)
+			end
+
+			local animation_event_variable_data = self._animation_event_variable_data
+
+			if animation_event_variable_data and self._profile_spawner then
+				local index = animation_event_variable_data.index
+				local value = animation_event_variable_data.value
+
+				if self._profile_spawner then
+					self._profile_spawner:assign_animation_variable(index, value)
+				end
+			end
+
+			local prop_item_key = item.prop_item
+			local prop_item = prop_item_key and prop_item_key ~= "" and MasterItems.get_item(prop_item_key)
+
+			context.prop_item = context.prop_item or prop_item
+
+			if context.prop_item then
+				local prop_item_slot = context.prop_item.slots[1]
+
+				presentation_loadout[prop_item_slot] = context.prop_item
+
+				if self._profile_spawner then
+					self._profile_spawner:wield_slot(prop_item_slot)
+				end
+			end
+		end
+
+		self:_set_preview_widgets_visibility(true)
+
+		local property_text = ItemUtils.item_property_text(item, true)
+		local restriction_text, present_restriction_text = ItemUtils.restriction_text(item)
+
+		if not present_restriction_text then
+			restriction_text = nil
+		end
+
+		self.hide_character = false
+		if
+			Managers.ui:view_active("penance_overview_view")
+			or Managers.ui:view_active("inventory_weapon_cosmetics_view")
+		then
+			if item.item_type == "PORTRAIT_FRAME" then
+				if self._widgets_by_name.portrait_preview_panel then
+					self._preview_player = false
+					self._spawn_player = false
+					self._can_preview_with_gear = false
+					self.hide_character = true
+					self._on_enter_animation_triggered = false
+					self._previewed_with_gear = false
+
+					self:_setup_weapon_preview()
+
+					weapon_preview_loaded = true
+
+					self._widgets_by_name.portrait_preview_panel.visible = true
+					local icon
+					if item.texture_resource then
+						icon = item.texture_resource
+					else
+						icon = "content/ui/textures/nameplates/portrait_frames/default"
+					end
+
+					local widget = self._widgets_by_name.portrait_preview_panel
+					local material_values = widget.style.portrait_frame.material_values
+
+					material_values.portrait_frame_texture = icon
+				end
+			elseif item.item_type == "CHARACTER_INSIGNIA" then
+				if self._widgets_by_name.character_insignia then
+					self._preview_player = false
+					self._spawn_player = false
+					self._can_preview_with_gear = false
+					self.hide_character = true
+					self._on_enter_animation_triggered = false
+					self._previewed_with_gear = false
+
+					self:_setup_weapon_preview()
+					weapon_preview_loaded = true
+
+					local widget = self._widgets_by_name.character_insignia
+					widget.visible = true
+					local cb = callback(self, "_cb_set_player_insignia", widget)
+
+					widget.content.insignia_load_id = Managers.ui:load_item_icon(item, cb)
+				end
+			elseif item.item_type == "WEAPON_TRINKET" then
+				self._preview_player = false
+				self._spawn_player = false
+				self._can_preview_with_gear = false
+				self.hide_character = true
+				self._on_enter_animation_triggered = false
+				self._previewed_with_gear = false
+
+				self._weapon_zoom_fraction = -0.45
+				self._weapon_zoom_target = -0.45
+				self._min_zoom = -0.45
+				self._max_zoom = 4
+
+				self:_setup_weapon_preview()
+				weapon_preview_loaded = true
+				local visual_item = ItemUtils.weapon_trinket_preview_item(item)
+				CosmeticsInspectView._preview_item_func(self, visual_item)
+			elseif item.item_type == "CHARACTER_TITLE" then
+				self._preview_player = false
+				self._spawn_player = false
+				self._can_preview_with_gear = false
+				self._on_enter_animation_triggered = false
+				self._previewed_with_gear = false
+				self.hide_character = true
+
+				self:_setup_weapon_preview()
+				weapon_preview_loaded = true
+			elseif
+				item.item_type == "WEAPON_SKIN" and not Managers.ui:view_active("inventory_weapon_cosmetics_view")
+			then
+				self._preview_player = false
+				self._spawn_player = false
+				self._can_preview_with_gear = false
+				self.hide_character = true
+				self._on_enter_animation_triggered = false
+				self._previewed_with_gear = false
+
+				self._weapon_zoom_fraction = -0.45
+				self._weapon_zoom_target = -0.45
+				self._min_zoom = -0.45
+				self._max_zoom = 4
+
+				self:_setup_weapon_preview()
+				weapon_preview_loaded = true
+				local visual_item = ItemUtils.weapon_skin_preview_item(item)
+				CosmeticsInspectView._preview_item_func(self, visual_item)
+			else
+				self._preview_player = true
+				self._spawn_player = true
+				self._can_preview_with_gear = true
+				self._on_enter_animation_triggered = true
+				self._previewed_with_gear = true
+				self.hide_character = false
+
+				self._weapon_zoom_fraction = -0.45
+				self._weapon_zoom_target = -0.45
+				self._min_zoom = -0.45
+				self._max_zoom = 4
+
+				self:_setup_weapon_preview(true)
+				weapon_preview_loaded = true
+			end
+		end
+
+		local description = item.description and Localize(item.description)
+
+		self:_setup_item_description(description, restriction_text, property_text)
+		self:_setup_title(item)
+	elseif self._bundle_data then
+		local description = self._bundle_data.description or ""
+
+		self:_setup_item_description(description)
+
+		local texture_data = self._bundle_data.image
+
+		if texture_data then
+			local url = texture_data.url
+
+			self._image_url = url
+
+			Managers.url_loader:load_texture(url)
+
+			self._widgets_by_name.bundle_background.style.bundle.material_values.texture_map = texture_data.texture
+		end
+
+		local title_item_data = {
+			item_type = Localize(UISettings.item_type_localization_lookup[Utf8.upper(self._bundle_data.type)]),
+			display_name = self._bundle_data.title,
+		}
+
+		self:_setup_title(title_item_data, true)
+		self:_set_preview_widgets_visibility(true)
+	end
+end
+
+----------------------------------------------------------------------------------
+-- COPIED FROM PENANCES_IMPROVED END ---------------------------------------------
+----------------------------------------------------------------------------------
+
 local function _item_plus_overrides(item, gear, gear_id, is_preview_item)
 	local gearid = math.uuid() or gear_id
 
@@ -1211,14 +1623,15 @@ local add_definitions = function(definitions)
 		})
 	local should_add_inspect = true
 
+	local inspect_index = 0
 	for i = 1, #definitions.legend_inputs do
 		if definitions.legend_inputs[i].on_pressed_callback == "cb_on_inspect_pressed" then
-			should_add_inspect = false
+			inspect_index = i
 		end
 	end
 
 	if should_add_inspect then
-		definitions.legend_inputs[#definitions.legend_inputs + 1] = {
+		definitions.legend_inputs[inspect_index] = {
 			on_pressed_callback = "cb_on_inspect_pressed",
 			input_action = "hotkey_item_inspect",
 			display_name = "loc_VLWC_inspect",
@@ -1226,11 +1639,23 @@ local add_definitions = function(definitions)
 			visibility_function = function(parent)
 				if parent._previewed_item then
 					local previewed_item = parent._previewed_item
-					local slot_weapon_skin = previewed_item.slot_weapon_skin
-					local skin_item = slot_weapon_skin.__master_item
 
-					if skin_item then
-						return true
+					if previewed_item then
+						local item_type = previewed_item.item_type
+						local ITEM_TYPES = UISettings.ITEM_TYPES
+
+						if previewed_item.empty_item then
+							return false
+						end
+
+						if
+							item_type == ITEM_TYPES.WEAPON_MELEE
+							or item_type == ITEM_TYPES.WEAPON_RANGED
+							or item_type == ITEM_TYPES.WEAPON_SKIN
+							or item_type == ITEM_TYPES.WEAPON_TRINKET
+						then
+							return true
+						end
 					end
 				end
 
@@ -1480,14 +1905,16 @@ StoreView._on_page_index_selected = function(self, page_index, select_element)
 			promise = Promise.resolved()
 		end
 
-		promise:next(callback(self, "_show_grid_entries", page_index, previous_page_index), function()
-			return
-		end):next(function()
-			if select_element then
-				self:_set_selected_grid_index(select_element.index)
-				StoreView.cb_on_grid_entry_left_pressed(self, nil, select_element)
-			end
-		end)
+		promise
+			:next(callback(self, "_show_grid_entries", page_index, previous_page_index), function()
+				return
+			end)
+			:next(function()
+				if select_element then
+					self:_set_selected_grid_index(select_element.index)
+					StoreView.cb_on_grid_entry_left_pressed(self, nil, select_element)
+				end
+			end)
 	end)
 end
 
