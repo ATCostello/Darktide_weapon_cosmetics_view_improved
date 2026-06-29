@@ -44,6 +44,8 @@ local trinket_slot_order = {
 	"slot_trinket_2",
 }
 
+local CosmeticsInspectView = require("scripts/ui/views/cosmetics_inspect_view/cosmetics_inspect_view")
+
 local base_item
 current_commodores_offers = {}
 
@@ -1043,7 +1045,6 @@ mod.can_item_be_equipped = function(self, selected_item)
 
 	return can_be_equipped
 end
-
 
 ----------------------------------------------------------------------------------
 -- COPIED FROM PENANCES_IMPROVED -------------------------------------------------
