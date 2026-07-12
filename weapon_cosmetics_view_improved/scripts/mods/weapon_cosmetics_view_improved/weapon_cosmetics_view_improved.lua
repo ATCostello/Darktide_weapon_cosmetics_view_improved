@@ -2615,6 +2615,7 @@ mod.get_weapon_cosmetic_items = function(self)
 	local weapon_cosmetic_items = {}
 
 	local item_definitions = MasterItems.get_cached()
+	local feature_flags_table = Application.get_feature_flags_table()
 
 	for item_name, item in pairs(item_definitions) do
 		repeat
@@ -2629,13 +2630,12 @@ mod.get_weapon_cosmetic_items = function(self)
 				-- filter out skins for wrong weapon types
 				if slot == "slot_weapon_skin" then
 					local is_item_stripped = true
-					local strip_tags_table = Application.get_strip_tags_table()
 
 					if table.size(item.feature_flags) == 0 then
 						is_item_stripped = false
 					else
 						for _, feature_flag in pairs(item.feature_flags) do
-							if strip_tags_table[feature_flag] == true then
+							if feature_flags_table[feature_flag] == true then
 								is_item_stripped = false
 
 								break
