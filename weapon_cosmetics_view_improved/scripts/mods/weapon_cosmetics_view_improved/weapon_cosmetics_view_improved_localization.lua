@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.6.02"
+mod.version = "2.6.04"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -7,6 +7,46 @@ local colours = {
 	subtitle = "226,199,126",
 	text = "169,191,153",
 }
+
+local function lerp(a, b, t)
+	return a + (b - a) * t
+end
+
+mod.gradientText = function(text, startColor, endColor, colorSpaces)
+	local result = ""
+	local length = #text
+	local visibleIndex = 0
+
+	-- Count visible characters
+	for i = 1, length do
+		local char = text:sub(i, i)
+		if colorSpaces or char ~= " " then
+			visibleIndex = visibleIndex + 1
+		end
+	end
+
+	local currentIndex = 0
+
+	for i = 1, length do
+		local char = text:sub(i, i)
+
+		if not colorSpaces and char == " " then
+			result = result .. char
+		else
+			currentIndex = currentIndex + 1
+			local t = (visibleIndex <= 1) and 0 or (currentIndex - 1) / (visibleIndex - 1)
+
+			local r = math.floor(lerp(startColor[1], endColor[1], t))
+			local g = math.floor(lerp(startColor[2], endColor[2], t))
+			local b = math.floor(lerp(startColor[3], endColor[3], t))
+
+			result = result .. string.format("{#color(%d,%d,%d)}%s", r, g, b, char)
+		end
+	end
+
+	result = "{#color(" .. colours.title .. ")} " .. result .. "{#reset()}"
+	return result
+end
 
 mod:add_global_localize_strings({
 	loc_VLWC_store = {
@@ -41,25 +81,27 @@ mod:add_global_localize_strings({
 	},
 })
 
+local mod_name = {
+	en = "Weapon Cosmetics View Improved",
+	ru = "Улучшенный осмотр косметических элементов оружия",
+	["zh-cn"] = "武器装饰品视图改进",
+}
+
 mod.localisation = {
 	mod_name = {
-		en = "{#color("
-			.. colours.title
-			.. ")} "
-			.. "{#color(255,0,0)}W{#color(250,0,0)}e{#color(246,0,0)}a{#color(241,0,0)}p{#color(237,0,0)}o{#color(232,0,0)}n {#color(228,0,0)}C{#color(224,0,0)}o{#color(219,0,0)}s{#color(215,0,0)}m{#color(210,0,0)}e{#color(206,0,0)}t{#color(201,0,0)}i{#color(197,0,0)}c{#color(193,0,0)}s {#color(188,0,0)}V{#color(184,0,0)}i{#color(179,0,0)}e{#color(175,0,0)}w {#color(170,0,0)}I{#color(166,0,0)}m{#color(162,0,0)}p{#color(157,0,0)}r{#color(153,0,0)}o{#color(148,0,0)}v{#color(144,0,0)}e{#color(140,0,0)}d{#reset()}",
-		ru = "Улучшенный осмотр косметических элементов оружия",
-		["zh-cn"] = "武器装饰品视图改进",
+		en = mod_name["en"],
+		ru = mod_name["ru"],
+		["zh-cn"] = mod_name["zh-cn"],
 	},
 	mod_name_pizazz = {
-		en = "{#color("
-			.. colours.title
-			.. ")} "
-			.. "{#color(255,0,0)}W{#color(250,0,0)}e{#color(246,0,0)}a{#color(241,0,0)}p{#color(237,0,0)}o{#color(232,0,0)}n {#color(228,0,0)}C{#color(224,0,0)}o{#color(219,0,0)}s{#color(215,0,0)}m{#color(210,0,0)}e{#color(206,0,0)}t{#color(201,0,0)}i{#color(197,0,0)}c{#color(193,0,0)}s {#color(188,0,0)}V{#color(184,0,0)}i{#color(179,0,0)}e{#color(175,0,0)}w {#color(170,0,0)}I{#color(166,0,0)}m{#color(162,0,0)}p{#color(157,0,0)}r{#color(153,0,0)}o{#color(148,0,0)}v{#color(144,0,0)}e{#color(140,0,0)}d{#reset()}",
-		ru = "Улучшенный осмотр косметических элементов оружия",
-		["zh-cn"] = "武器装饰品视图改进",
+		en = mod.gradientText(mod_name["en"], { 255, 0, 0 }, { 140, 0, 0 }, true),
+		ru = mod.gradientText(mod_name["ru"], { 255, 0, 0 }, { 140, 0, 0 }, true),
+		["zh-cn"] = mod.gradientText(mod_name["zh-cn"], { 255, 0, 0 }, { 140, 0, 0 }, true),
 	},
 	mod_name_boring = {
-		en = "Weapon Cosmetics View Improved",
+		en = mod_name["en"],
+		ru = mod_name["ru"],
+		["zh-cn"] = mod_name["zh-cn"],
 	},
 
 	mod_description = {
