@@ -173,7 +173,7 @@ mod.on_all_mods_loaded = function()
 								default_position[3]
 							)
 							-- mod:info("WEAPONCUSTOMIZATION.set_light_positions: " .. tostring(unit_data.unit))
-							if not tostring(unit_data.unit) == "[Unit (deleted)]" then
+							if tostring(unit_data.unit) ~= "[Unit (deleted)]" then
 								unit_set_local_position(unit_data.unit, 1, light_position)
 							end
 						end
@@ -333,8 +333,6 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 
 	local parent_item = self._presentation_item
 	local selected_item = self._previewed_item
-
-	dbg_p = self._previewed_item
 
 	if self._selected_tab_index == 1 then
 		if string.find(self._previewed_item.name, "trinket") then
@@ -518,6 +516,19 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "on_enter", function(self)
 		-5,
 		7,
 	}
+
+	local item_owned_text_style = table.clone(UIFontSettings.header_2)
+
+	item_owned_text_style.text_horizontal_alignment = "right"
+	item_owned_text_style.text_vertical_alignment = "bottom"
+	item_owned_text_style.horizontal_alignment = "right"
+	item_owned_text_style.vertical_alignment = "bottom"
+	item_owned_text_style.offset = {
+		0,
+		4,
+		15,
+	}
+	item_owned_text_style.text_color = Color.terminal_text_body(255, true)
 
 	local function item_change_function(content, style)
 		local hotspot = content.hotspot
@@ -2250,35 +2261,10 @@ InventoryWeaponCosmeticsView._prepare_layout_data = function(self)
 				--continue = false
 			end
 
-			for _, default_item in pairs(inventory_items) do
-				if
-					default_item.item
-					and default_item.item.__master_item
-					and default_item.item.__master_item.display_name == skin_name
-				then
-					continue = false
-				end
-
-				if default_item.item and default_item.item and default_item.item.display_name == skin_name then
-					continue = false
-				end
-			end
-
-			for _, default_item in pairs(penance_track_items) do
-				if
-					default_item.item
-					and default_item.item.__master_item
-					and default_item.item.__master_item.display_name == skin_name
-				then
-					continue = false
-				end
-
-				if default_item.item and default_item.item and default_item.item.display_name == skin_name then
-					continue = false
-				end
-			end
-
-			for _, default_item in pairs(store_items) do
+			-- Only dedupe against OWNED inventory items. The penance_track/store lists contain
+			-- every reward/offer regardless of ownership, so deduping against them would hide
+			-- locked penance, commissary and Hestia's Blessings cosmetics entirely.
+			for _, default_item in pairs(inventory_items or {}) do
 				if
 					default_item.item
 					and default_item.item.__master_item
@@ -2643,8 +2629,7 @@ mod.get_weapon_cosmetic_items = function(self)
 	local weapon_cosmetic_items = {}
 
 	local item_definitions = MasterItems.get_cached()
-	-- Fetch once outside the loop; calling it per item spams engine deprecation warnings.
-	local strip_tags_table = Application.get_strip_tags_table()
+	local feature_flags_table = Application.get_feature_flags_table()
 
 	for item_name, item in pairs(item_definitions) do
 		repeat
@@ -2660,7 +2645,7 @@ mod.get_weapon_cosmetic_items = function(self)
 						is_item_stripped = false
 					else
 						for _, feature_flag in pairs(item.feature_flags) do
-							if strip_tags_table[feature_flag] == true then
+							if feature_flags_table[feature_flag] == true then
 								is_item_stripped = false
 
 								break
