@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.6.05"
+mod.version = "2.6.06"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -66,16 +66,16 @@ mod:add_global_localize_strings({
 		["zh-tw"] = "檢查",
 	},
 	loc_VLWC_wishlist = {
-		en = " ",
-		ru = " ",
-		["zh-cn"] = " ",
-		["zh-tw"] = " ",
+		en = "",
+		ru = "",
+		["zh-cn"] = "",
+		["zh-tw"] = "",
 	},
 	loc_VLWC_in_store = {
-		en = " ",
-		ru = " ",
-		["zh-cn"] = " ",
-		["zh-tw"] = " ",
+		en = "",
+		ru = "",
+		["zh-cn"] = "",
+		["zh-tw"] = "",
 	},
 	loc_VLWC_wishlist_notification = {
 		en = "The following cosmetic(s) from your wishlist are available for purchase: ",
