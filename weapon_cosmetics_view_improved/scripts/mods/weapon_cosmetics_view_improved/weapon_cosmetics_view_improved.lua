@@ -43,6 +43,7 @@ local trinket_slot_order = {
 	"slot_trinket_1",
 	"slot_trinket_2",
 }
+local ProfileUtils = require("scripts/utilities/profile_utils")
 
 local CosmeticsInspectView = require("scripts/ui/views/cosmetics_inspect_view/cosmetics_inspect_view")
 
@@ -2592,26 +2593,10 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 			}
 		end)
 	end
-	return self._promise_container:cancel_on_destroy(Promise.all(unpack(promises))):next(function(items_data)
-		self._items_by_slot = {}
-
-		for i = 1, #items_data do
-			local tab_content = tabs_content[i]
-			local slot_name = tab_content.slot_name
-
-			self._items_by_slot[slot_name] = items_data[i]
-		end
-	end):catch(function(items_data)
-		self._items_by_slot = {}
-
-		if type(items_data) == "table" then
-			for i = 1, #items_data do
-				local rejected = items_data[i]
-
-				if type(rejected) == "table" and rejected.code and Managers.backend:is_retryable_error_code(rejected.code) then
-					self._refresh_in_seconds = 5
-				end
-			end
+	return self._promise_container
+		:cancel_on_destroy(Promise.all(unpack(promises)))
+		:next(function(items_data)
+			self._items_by_slot = {}
 
 			for i = 1, #items_data do
 				local tab_content = tabs_content[i]
@@ -2619,8 +2604,31 @@ InventoryWeaponCosmeticsView._fetch_inventory_items = function(self)
 
 				self._items_by_slot[slot_name] = items_data[i]
 			end
-		end
-	end)
+		end)
+		:catch(function(items_data)
+			self._items_by_slot = {}
+
+			if type(items_data) == "table" then
+				for i = 1, #items_data do
+					local rejected = items_data[i]
+
+					if
+						type(rejected) == "table"
+						and rejected.code
+						and Managers.backend:is_retryable_error_code(rejected.code)
+					then
+						self._refresh_in_seconds = 5
+					end
+				end
+
+				for i = 1, #items_data do
+					local tab_content = tabs_content[i]
+					local slot_name = tab_content.slot_name
+
+					self._items_by_slot[slot_name] = items_data[i]
+				end
+			end
+		end)
 end
 -- Grabs all weapon cosmetic trinkets, skins etc.
 mod.get_weapon_cosmetic_items = function(self)
@@ -2798,7 +2806,7 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 		local preferred_gender = player_profile and player_profile.gender
 
 		player_profile = is_item_supported_on_played_character and player_profile
-			or Items.create_mannequin_profile_by_item(visual_item, preferred_gender)
+			or ProfileUtils.create_mannequin_profile(visual_item, player_profile)
 
 		local context
 
