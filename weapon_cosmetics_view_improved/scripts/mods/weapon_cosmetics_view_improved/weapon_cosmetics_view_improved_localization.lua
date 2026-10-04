@@ -1,5 +1,5 @@
 local mod = get_mod("weapon_cosmetics_view_improved")
-mod.version = "2.7.2"
+mod.version = "2.7.3"
 mod:info("Weapon Cosmetics Improved is installed, using version: " .. tostring(mod.version))
 
 local colours = {
@@ -48,7 +48,7 @@ mod.gradientText = function(text, startColor, endColor, colorSpaces)
 		end
 	end
 
-	result = "{#color(" .. colours.title .. ")}" .. result .. "{#reset()}"
+	result = "{#color(" .. colours.title .. ")} " .. result .. "{#reset()}"
 	return result
 end
 
