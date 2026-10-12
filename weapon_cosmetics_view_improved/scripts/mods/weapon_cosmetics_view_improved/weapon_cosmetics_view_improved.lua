@@ -214,6 +214,11 @@ mod.on_all_mods_loaded = function()
 									for i, item in pairs(wishlisted_items) do
 										local item_name = item.name
 										local gearid = item.gearid
+
+										if not item_name and not gearid then
+											goto continue
+										end
+
 										local purchase_offer = nil
 										purchase_offer = mod.get_item_in_current_commodores(self, gearid, item.name)
 
@@ -224,6 +229,8 @@ mod.on_all_mods_loaded = function()
 											end
 											available_items[#available_items + 1] = item_text
 										end
+
+										::continue::
 									end
 
 									if #available_items > 0 then
@@ -238,8 +245,6 @@ mod.on_all_mods_loaded = function()
 										end
 										Managers.event:trigger("event_add_notification_message", "default", text)
 									end
-
-									current_commodores_offers = {}
 								end)
 							end)
 						end)
@@ -249,7 +254,7 @@ mod.on_all_mods_loaded = function()
 		end
 
 		-- display wishlist notifications when going to character select screen...
-		mod:hook_safe(CLASS.StateMainMenu, "event_request_select_new_profile", function(self, profile)
+		mod:hook_safe(CLASS.StateMainMenu, "event_main_menu_entered", function(self, profile)
 			mod.display_wishlist_notification(self)
 		end)
 	end
@@ -275,43 +280,30 @@ mod.update_wishlist_icons = function(self)
 	for _, widget in pairs(widgets) do
 		local item_on_wishlist = false
 
-		-- weapon skins
-		if
-			widget.content
+		local item = widget.content
 			and widget.content.entry
-			and widget.content.entry.item
-			and widget.content.entry.item.slot_weapon_skin
-			and widget.content.entry.item.slot_weapon_skin.__master_item
-		then
-			if widget.content.entry.item.slot_weapon_skin.__master_item then
-				local previewed_item_name = widget.content.entry.item.slot_weapon_skin.__master_item.name
-				if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
-					for i, item in pairs(wishlisted_items) do
-						if item.name == previewed_item_name then
-							item_on_wishlist = true
-						end
+			and widget.content.entry.real_item
+			and widget.content.entry.real_item.__master_item
+
+		-- weapon skins
+		if item and item.item_type and item.item_type == "WEAPON_SKIN" then
+			local previewed_item_name = item.name
+			if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+				for i, item in pairs(wishlisted_items) do
+					if item.name == previewed_item_name then
+						item_on_wishlist = true
 					end
 				end
 			end
 		end
 
 		-- trinkets
-		if
-			widget.content
-			and widget.content.entry
-			and widget.content.entry.item
-			and widget.content.entry.item.attachments
-			and widget.content.entry.item.attachments.slot_trinket_1
-			and widget.content.entry.item.attachments.slot_trinket_1.item
-			and widget.content.entry.item.attachments.slot_trinket_1.item.__master_item
-		then
-			if widget.content.entry.item.attachments.slot_trinket_1.item.__master_item then
-				local previewed_item_name = widget.content.entry.item.attachments.slot_trinket_1.item.__master_item.name
-				if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
-					for i, item in pairs(wishlisted_items) do
-						if item.name == previewed_item_name then
-							item_on_wishlist = true
-						end
+		if item and item.item_type and item.item_type == "WEAPON_TRINKET" then
+			local previewed_item_name = item.name
+			if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+				for i, item in pairs(wishlisted_items) do
+					if item.name == previewed_item_name then
+						item_on_wishlist = true
 					end
 				end
 			end
@@ -367,14 +359,14 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		-- find if item is on wishlist
 		local item_on_wishlist = false
 		local widgets_by_name = self._widgets_by_name
+		local selected_item = self._previewed_item.__master_item
 
 		-- weapon skins
-		if self._previewed_item.slot_weapon_skin and self._previewed_item.slot_weapon_skin.__master_item then
-			local previewed_item = self._previewed_item.slot_weapon_skin
-			local previewed_item_name = previewed_item.__master_item.name
+		if selected_item and selected_item.item_type and selected_item.item_type == "WEAPON_SKIN" then
+			local previewed_item_name = selected_item.name
 			if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
 				for i, item in pairs(wishlisted_items) do
-					if item and item.name == previewed_item_name then
+					if item.name == previewed_item_name then
 						item_on_wishlist = true
 					end
 				end
@@ -382,19 +374,12 @@ mod:hook_safe(CLASS.InventoryWeaponCosmeticsView, "_preview_element", function(s
 		end
 
 		-- trinkets
-		if
-			self._previewed_item.attachments
-			and self._previewed_item.attachments.slot_trinket_1
-			and self._previewed_item.attachments.slot_trinket_1.item
-			and self._previewed_item.attachments.slot_trinket_1.item.__master_item
-		then
-			if self._previewed_item.attachments.slot_trinket_1.item.__master_item then
-				local previewed_item_name = self._previewed_item.attachments.slot_trinket_1.item.__master_item.name
-				if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
-					for i, item in pairs(wishlisted_items) do
-						if item.name == previewed_item_name then
-							item_on_wishlist = true
-						end
+		if selected_item and selected_item.item_type and selected_item.item_type == "WEAPON_TRINKET" then
+			local previewed_item_name = selected_item.name
+			if wishlisted_items ~= nil and not table.is_empty(wishlisted_items) then
+				for i, item in pairs(wishlisted_items) do
+					if item.name == previewed_item_name then
+						item_on_wishlist = true
 					end
 				end
 			end
@@ -2723,28 +2708,38 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 		end
 
 		-- Handle weapon skins
-		if item.__master_item then
+		if item.__master_item and item.__master_item.item_type and item.__master_item.item_type == "WEAPON_SKIN" then
+			local item_details = ItemUtils.weapon_skin_preview_item(item, true)
 			local master = item.__master_item
+
 			previewed_item_name = master.name
 			previewed_item_dev_name = master.dev_name
 			previewed_item_display_name = master.display_name
 			previewed_item_gearid = item.__gear_id
-			temp.parent_item = Localize(master.display_name)
+			temp.parent_item = ""
+
+			if
+				item_details
+				and item_details.weapon_family_display_name
+				and item_details.weapon_family_display_name.loc_id
+			then
+				temp.parent_item = Localize(item_details.weapon_family_display_name.loc_id) or ""
+			end
 
 			remove_from_wishlist()
 		end
 
-		-- Handle trinkets
-		local trinket_item = item.attachments
-			and item.attachments.slot_trinket_1
-			and item.attachments.slot_trinket_1.item
-		if trinket_item and trinket_item.__master_item then
-			local master = trinket_item.__master_item
+		-- Handle weapon trinkets
+		if item.__master_item and item.__master_item.item_type and item.__master_item.item_type == "WEAPON_TRINKET" then
+			local item_details = ItemUtils.weapon_trinket_preview_item(item)
+			local master = item.__master_item
+
 			previewed_item_name = master.name
 			previewed_item_dev_name = master.dev_name
 			previewed_item_display_name = master.display_name
-			previewed_item_gearid = trinket_item.__gear_id
-			temp.parent_item = "Trinket"
+			previewed_item_gearid = item.__gear_id
+
+			temp.parent_item = Localize("loc_preview_trinket") or ""
 
 			remove_from_wishlist()
 		end
@@ -2763,12 +2758,20 @@ mod:hook_require("scripts/ui/views/inventory_weapon_cosmetics_view/inventory_wea
 			widgets_by_name.wishlist_button.style.background_gradient.default_color =
 				Color.terminal_text_warning_light(nil, true)
 
-			local text = Localize(previewed_item_display_name)
-				.. " ("
-				.. temp.parent_item
-				.. ")"
-				.. Localize("loc_VLWC_wishlist_added")
-			Managers.event:trigger("event_add_notification_message", "default", text)
+			if previewed_item_display_name then
+				local text = ""
+				if temp.parent_item then
+					text = Localize(previewed_item_display_name)
+						.. " ("
+						.. temp.parent_item
+						.. ")"
+						.. Localize("loc_VLWC_wishlist_added")
+				else
+					text = Localize(previewed_item_display_name) .. Localize("loc_VLWC_wishlist_added")
+				end
+
+				Managers.event:trigger("event_add_notification_message", "default", text)
+			end
 		end
 
 		mod.set_wishlist()
